@@ -9,6 +9,7 @@ import { RootState } from '../../store';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
 import { reportService } from '../../services/reportService';
 import { haptics } from '../../utils/haptics';
+import { useLanguage } from '../../i18n';
 
 const { width } = Dimensions.get('window');
 const chartWidth = width - SPACING.xl * 2 - 8;
@@ -43,6 +44,7 @@ function formatRelTime(dateStr: string): string {
 
 export default function AdminDashboard({ navigation }: any) {
   const { user } = useSelector((s: RootState) => s.auth);
+  const { t } = useLanguage();
   const [analytics, setAnalytics] = useState<any>(null);
   const [flaggedReports, setFlaggedReports] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -142,7 +144,7 @@ export default function AdminDashboard({ navigation }: any) {
             onPress={() => { haptics.selection(); setPeriod(p); }}
           >
             <Text style={[styles.toggleText, period === p && styles.toggleTextActive]}>
-              {p === 7 ? 'This Week' : 'This Month'}
+              {p === 7 ? t('thisWeek') : t('thisMonth')}
             </Text>
           </TouchableOpacity>
         ))}
@@ -155,14 +157,14 @@ export default function AdminDashboard({ navigation }: any) {
           {/* KPI Cards — real data */}
           <View style={styles.kpiGrid}>
             <KpiCard
-              label="Cups Sold"
+              label={t('cupsTotal')}
               value={totalCups.toLocaleString('en-IN')}
-              sub={`${summary.reportCount ?? 0} reports`}
+              sub={`${summary.reportCount ?? 0} ${t('reportsThisPeriod').toLowerCase()}`}
               color={COLORS.primaryLight}
               icon="☕"
             />
             <KpiCard
-              label="Revenue"
+              label={t('revenueTotal')}
               value={`₹${Math.round(totalRevenue).toLocaleString('en-IN')}`}
               sub={`₹${summary.reportCount > 0 ? Math.round(totalRevenue / summary.reportCount) : 0} avg`}
               color={COLORS.success}
@@ -176,9 +178,9 @@ export default function AdminDashboard({ navigation }: any) {
               icon="📱"
             />
             <KpiCard
-              label="Alerts"
+              label={t('flaggedReports')}
               value={String(flaggedCount || flaggedReports.length)}
-              sub="flagged reports"
+              sub={t('flaggedReports').toLowerCase()}
               color={COLORS.danger}
               icon="🚨"
             />
@@ -229,14 +231,14 @@ export default function AdminDashboard({ navigation }: any) {
           {/* Suspicion Alerts — real data */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>🚨 Suspicion Alerts</Text>
+              <Text style={styles.sectionTitle}>{t('suspicionAlerts')}</Text>
               <TouchableOpacity onPress={() => { haptics.light(); navigation.navigate('Analytics'); }}>
                 <Text style={styles.seeAll}>See all</Text>
               </TouchableOpacity>
             </View>
             {alertItems.length === 0 ? (
               <View style={styles.emptyAlerts}>
-                <Text style={styles.emptyAlertsText}>✅ No active suspicion alerts</Text>
+                <Text style={styles.emptyAlertsText}>{t('noSuspicionAlerts')}</Text>
               </View>
             ) : (
               alertItems.map((alert, i) => (
@@ -255,7 +257,7 @@ export default function AdminDashboard({ navigation }: any) {
 
           {/* Quick Actions */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Quick Actions</Text>
+            <Text style={styles.sectionTitle}>{t('quickActions')}</Text>
             <View style={styles.actionGrid}>
               {[
                 { label: 'Staff', icon: '👥', screen: 'StaffManagement' },
@@ -283,10 +285,10 @@ export default function AdminDashboard({ navigation }: any) {
 
           {/* Staff Leaderboard — real data */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Staff Performance</Text>
+            <Text style={styles.sectionTitle}>{t('staffPerformance')}</Text>
             {staffPerf.length === 0 ? (
               <View style={styles.emptyAlerts}>
-                <Text style={styles.emptyAlertsText}>No performance data yet for this period</Text>
+                <Text style={styles.emptyAlertsText}>{t('noPerformanceData')}</Text>
               </View>
             ) : (
               <View style={styles.leaderboard}>

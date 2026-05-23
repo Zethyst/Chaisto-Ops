@@ -7,6 +7,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../store';
 import { refreshSession } from '../store/slices/authSlice';
 import { COLORS, FONT_SIZE } from '../constants';
+import { useLanguage } from '../i18n';
 
 // Auth
 import LoginScreen from '../screens/auth/LoginScreen';
@@ -60,27 +61,28 @@ const headerOpts = { headerShown: true, headerTintColor: COLORS.primary, headerB
 
 // ─── Admin Tabs ───────────────────────────────────────────────────────────────
 function AdminTabs() {
+  const { t } = useLanguage();
   return (
     <Tab.Navigator screenOptions={tabBarOptions}>
       <Tab.Screen
         name="AdminDashboard"
         component={AdminDashboard}
-        options={{ title: 'Dashboard', tabBarIcon: ({ focused }) => <TabIcon icon="📊" focused={focused} /> }}
+        options={{ title: t('tabDashboard'), tabBarIcon: ({ focused }) => <TabIcon icon="📊" focused={focused} /> }}
       />
       <Tab.Screen
         name="StaffManagement"
         component={StaffManagementScreen}
-        options={{ title: 'Staff', tabBarIcon: ({ focused }) => <TabIcon icon="👥" focused={focused} /> }}
+        options={{ title: t('tabStaff'), tabBarIcon: ({ focused }) => <TabIcon icon="👥" focused={focused} /> }}
       />
       <Tab.Screen
         name="Notifications"
         component={NotificationsScreen}
-        options={{ title: 'Alerts', tabBarIcon: ({ focused }) => <TabIcon icon="🔔" focused={focused} /> }}
+        options={{ title: t('tabAlerts'), tabBarIcon: ({ focused }) => <TabIcon icon="🔔" focused={focused} /> }}
       />
       <Tab.Screen
         name="Settings"
         component={SettingsScreen}
-        options={{ title: 'Settings', tabBarIcon: ({ focused }) => <TabIcon icon="⚙️" focused={focused} /> }}
+        options={{ title: t('tabSettings'), tabBarIcon: ({ focused }) => <TabIcon icon="⚙️" focused={focused} /> }}
       />
     </Tab.Navigator>
   );
@@ -88,22 +90,23 @@ function AdminTabs() {
 
 // ─── Staff Tabs ───────────────────────────────────────────────────────────────
 function StaffTabs() {
+  const { t } = useLanguage();
   return (
     <Tab.Navigator screenOptions={tabBarOptions}>
       <Tab.Screen
         name="StaffDashboard"
         component={StaffDashboard}
-        options={{ title: 'Home', tabBarIcon: ({ focused }) => <TabIcon icon="🏠" focused={focused} /> }}
+        options={{ title: t('tabHome'), tabBarIcon: ({ focused }) => <TabIcon icon="🏠" focused={focused} /> }}
       />
       <Tab.Screen
         name="Notifications"
         component={NotificationsScreen}
-        options={{ title: 'Alerts', tabBarIcon: ({ focused }) => <TabIcon icon="🔔" focused={focused} /> }}
+        options={{ title: t('tabAlerts'), tabBarIcon: ({ focused }) => <TabIcon icon="🔔" focused={focused} /> }}
       />
       <Tab.Screen
         name="Settings"
         component={SettingsScreen}
-        options={{ title: 'Settings', tabBarIcon: ({ focused }) => <TabIcon icon="⚙️" focused={focused} /> }}
+        options={{ title: t('tabSettings'), tabBarIcon: ({ focused }) => <TabIcon icon="⚙️" focused={focused} /> }}
       />
     </Tab.Navigator>
   );
@@ -120,35 +123,37 @@ function AuthStack() {
 
 // ─── Admin Stack ──────────────────────────────────────────────────────────────
 function AdminStack() {
+  const { t } = useLanguage();
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="AdminTabs" component={AdminTabs} />
-      <Stack.Screen name="Analytics" component={AnalyticsScreen} options={{ ...headerOpts, title: 'Analytics' }} />
-      <Stack.Screen name="StallMap" component={StallMapScreen} options={{ ...headerOpts, title: 'Stall Map' }} />
-      <Stack.Screen name="ReportDetail" component={ReportDetailScreen} options={{ ...headerOpts, title: 'Report Detail' }} />
-      <Stack.Screen name="InventoryManagement" component={InventoryManagementScreen} options={{ ...headerOpts, title: 'Inventory' }} />
-      <Stack.Screen name="ExpenseTracker" component={ExpenseTrackerScreen} options={{ ...headerOpts, title: 'Expenses' }} />
-      <Stack.Screen name="WastageLog" component={WastageLogScreen} options={{ ...headerOpts, title: 'Wastage Log' }} />
-      <Stack.Screen name="PnLReport" component={PnLReportScreen} options={{ ...headerOpts, title: 'P&L Report' }} />
-      <Stack.Screen name="AuditLog" component={AuditLogScreen} options={{ ...headerOpts, title: 'Audit Log' }} />
-      <Stack.Screen name="AlertsConfig" component={AlertsConfigScreen} options={{ ...headerOpts, title: 'Alerts Config' }} />
-      <Stack.Screen name="Attendance" component={AttendanceScreen} options={{ ...headerOpts, title: 'Attendance' }} />
-      <Stack.Screen name="Payroll" component={PayrollScreen} options={{ ...headerOpts, title: 'Payroll' }} />
+      <Stack.Screen name="Analytics" component={AnalyticsScreen} options={{ ...headerOpts, title: t('screenAnalytics') }} />
+      <Stack.Screen name="StallMap" component={StallMapScreen} options={{ ...headerOpts, title: t('screenStallMap') }} />
+      <Stack.Screen name="ReportDetail" component={ReportDetailScreen} options={{ ...headerOpts, title: t('screenReportDetail') }} />
+      <Stack.Screen name="InventoryManagement" component={InventoryManagementScreen} options={{ ...headerOpts, title: t('screenInventory') }} />
+      <Stack.Screen name="ExpenseTracker" component={ExpenseTrackerScreen} options={{ ...headerOpts, title: t('screenExpenses') }} />
+      <Stack.Screen name="WastageLog" component={WastageLogScreen} options={{ ...headerOpts, title: t('screenWastage') }} />
+      <Stack.Screen name="PnLReport" component={PnLReportScreen} options={{ ...headerOpts, title: t('screenPnL') }} />
+      <Stack.Screen name="AuditLog" component={AuditLogScreen} options={{ ...headerOpts, title: t('screenAuditLog') }} />
+      <Stack.Screen name="AlertsConfig" component={AlertsConfigScreen} options={{ ...headerOpts, title: t('screenAlertsConfig') }} />
+      <Stack.Screen name="Attendance" component={AttendanceScreen} options={{ ...headerOpts, title: t('screenAttendance') }} />
+      <Stack.Screen name="Payroll" component={PayrollScreen} options={{ ...headerOpts, title: t('screenPayroll') }} />
     </Stack.Navigator>
   );
 }
 
 // ─── Staff Stack ──────────────────────────────────────────────────────────────
 function StaffStack() {
+  const { t } = useLanguage();
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="StaffTabs" component={StaffTabs} />
       <Stack.Screen name="DailyReport" component={DailyReportScreen} />
       <Stack.Screen name="CameraCapture" component={CameraCaptureScreen} />
-      <Stack.Screen name="InventoryManagement" component={InventoryManagementScreen} options={{ ...headerOpts, title: 'Inventory' }} />
-      <Stack.Screen name="ExpenseTracker" component={ExpenseTrackerScreen} options={{ ...headerOpts, title: 'Expenses' }} />
-      <Stack.Screen name="WastageLog" component={WastageLogScreen} options={{ ...headerOpts, title: 'Wastage Log' }} />
-      <Stack.Screen name="Attendance" component={AttendanceScreen} options={{ ...headerOpts, title: 'My Attendance' }} />
+      <Stack.Screen name="InventoryManagement" component={InventoryManagementScreen} options={{ ...headerOpts, title: t('screenInventory') }} />
+      <Stack.Screen name="ExpenseTracker" component={ExpenseTrackerScreen} options={{ ...headerOpts, title: t('screenExpenses') }} />
+      <Stack.Screen name="WastageLog" component={WastageLogScreen} options={{ ...headerOpts, title: t('screenWastage') }} />
+      <Stack.Screen name="Attendance" component={AttendanceScreen} options={{ ...headerOpts, title: t('screenMyAttendance') }} />
     </Stack.Navigator>
   );
 }

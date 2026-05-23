@@ -1,27 +1,48 @@
 import { Vibration, Platform } from 'react-native';
+import { trigger, HapticFeedbackTypes } from 'react-native-haptic-feedback';
 
-// On Android, Vibration works with distinct durations.
-// On iOS, Vibration always produces the same buzz — for proper Taptic Engine
-// feedback, install react-native-haptic-feedback and swap the body below.
-const vibe = (ms: number | number[]) => {
-  if (Platform.OS === 'android') {
-    Vibration.vibrate(ms as number);
-  } else {
-    Vibration.vibrate(Array.isArray(ms) ? 10 : ms);
-  }
+const OPTIONS = {
+  enableVibrateFallback: true,
+  ignoreAndroidSystemSettings: false,
 };
+
+function vibrateFallback(pattern: number | number[]) {
+  if (Platform.OS === 'android') {
+    Vibration.vibrate(Array.isArray(pattern) ? pattern : pattern);
+    return;
+  }
+  Vibration.vibrate(Array.isArray(pattern) ? 10 : (pattern as number));
+}
+
+/** Core haptics where supported (iOS Taptic Engine, Android VibratorComposer); catches + vibrates on failure */
+function pulse(type: (typeof HapticFeedbackTypes)[keyof typeof HapticFeedbackTypes]) {
+  try {
+    trigger(type, OPTIONS);
+  } catch {
+    // Rare native edge cases — keep tactile feedback roughly aligned
+    if (type === HapticFeedbackTypes.selection) vibrateFallback(8);
+    else if (type === HapticFeedbackTypes.impactLight) vibrateFallback(12);
+    else if (type === HapticFeedbackTypes.impactMedium) vibrateFallback(22);
+    else if (type === HapticFeedbackTypes.impactHeavy) vibrateFallback(40);
+    else if (type === HapticFeedbackTypes.notificationSuccess) {
+      vibrateFallback(Platform.OS === 'android' ? [0, 12, 60, 12] : 15);
+    } else if (type === HapticFeedbackTypes.notificationError) {
+      vibrateFallback(Platform.OS === 'android' ? [0, 40, 80, 40] : 35);
+    }
+  }
+}
 
 export const haptics = {
   /** Tab changes, filter chips, list item taps */
-  selection: () => vibe(8),
+  selection: () => pulse(HapticFeedbackTypes.selection),
   /** Standard button presses */
-  light: () => vibe(12),
+  light: () => pulse(HapticFeedbackTypes.impactLight),
   /** Toggle switches, confirm actions */
-  medium: () => vibe(22),
+  medium: () => pulse(HapticFeedbackTypes.impactMedium),
   /** Destructive or critical actions (logout, delete) */
-  heavy: () => vibe(40),
+  heavy: () => pulse(HapticFeedbackTypes.impactHeavy),
   /** Successful submission, creation */
-  success: () => vibe(Platform.OS === 'android' ? [0, 12, 60, 12] : 15),
+  success: () => pulse(HapticFeedbackTypes.notificationSuccess),
   /** Validation error, failed action */
-  error: () => vibe(Platform.OS === 'android' ? [0, 40, 80, 40] : 35),
+  error: () => pulse(HapticFeedbackTypes.notificationError),
 };

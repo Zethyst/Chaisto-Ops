@@ -7,6 +7,7 @@ import { notificationService } from '../../services/notificationService';
 import { Notification } from '../../types';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS } from '../../constants';
 import { haptics } from '../../utils/haptics';
+import { useLanguage } from '../../i18n';
 
 const TYPE_CONFIG: Record<string, { icon: string; color: string; bg: string }> = {
   report_submitted:   { icon: '📋', color: COLORS.info,    bg: COLORS.infoBg    },
@@ -32,6 +33,7 @@ function formatTime(dateStr: string): string {
 }
 
 export default function NotificationsScreen() {
+  const { t } = useLanguage();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -95,13 +97,13 @@ export default function NotificationsScreen() {
             onPress={() => { haptics.selection(); setFilter(f); }}
           >
             <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
-              {f === 'all' ? 'All' : f === 'unread' ? `Unread (${unreadCount})` : 'Alerts'}
+              {f === 'all' ? t('allFilter') : f === 'unread' ? `${t('unreadFilter')} (${unreadCount})` : t('alertsFilter')}
             </Text>
           </TouchableOpacity>
         ))}
         {unreadCount > 0 && (
           <TouchableOpacity style={styles.markAllBtn} onPress={handleMarkAllRead}>
-            <Text style={styles.markAllText}>Mark all read</Text>
+            <Text style={styles.markAllText}>{t('markAllRead')}</Text>
           </TouchableOpacity>
         )}
       </View>
