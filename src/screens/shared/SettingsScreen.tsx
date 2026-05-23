@@ -4,6 +4,7 @@ import {
   Alert, TextInput, ActivityIndicator, Switch, Modal, Image,
 } from 'react-native';
 import { launchCamera, launchImageLibrary, ImagePickerResponse, MediaType } from 'react-native-image-picker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
 import { logoutUser, setUser } from '../../store/slices/authSlice';
@@ -17,6 +18,7 @@ export default function SettingsScreen() {
   const { user } = useSelector((s: RootState) => s.auth);
   const dispatch = useDispatch<AppDispatch>();
 
+  const insets = useSafeAreaInsets();
   const { language, setLanguage, t } = useLanguage();
   const [showPwForm, setShowPwForm] = useState(false);
   const [oldPw, setOldPw] = useState('');
@@ -82,9 +84,11 @@ export default function SettingsScreen() {
       const url = await uploadToCloudinary(uri);
       setPendingPhotoUri(url);
       haptics.success();
-    } catch {
+    } catch (err: any) {
       haptics.error();
-      Alert.alert('Upload Failed', 'Could not upload photo. Try again.');
+      const detail = err?.response?.data?.error?.message || err?.message || 'Unknown error';
+      console.error('[Cloudinary upload error]', detail, err?.response?.data);
+      Alert.alert('Upload Failed', detail);
     } finally {
       setPhotoUploading(false);
     }
@@ -167,7 +171,7 @@ export default function SettingsScreen() {
   const roleBg = { admin: COLORS.adminBg, moderator: COLORS.moderatorBg, staff: COLORS.staffBg }[user?.role ?? 'staff'];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top }]}>
 
       {/* Profile Card */}
       <View style={styles.profileCard}>

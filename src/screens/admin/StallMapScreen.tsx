@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert,
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Platform,
 } from 'react-native';
-import MapView, { Marker, Circle, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, Circle, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { authService } from '../../services/authService';
@@ -76,7 +76,7 @@ export default function StallMapScreen() {
       <MapView
         ref={mapRef}
         style={styles.map}
-        provider={PROVIDER_GOOGLE}
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
         initialRegion={PRAYAGRAJ}
         showsUserLocation
         showsMyLocationButton={false}

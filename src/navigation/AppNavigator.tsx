@@ -2,7 +2,8 @@ import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text, View } from 'react-native';
+import { Text, View, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../store';
 import { refreshSession } from '../store/slices/authSlice';
@@ -43,27 +44,34 @@ function TabIcon({ icon, focused }: { icon: string; focused: boolean }) {
   return <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.45 }}>{icon}</Text>;
 }
 
-const tabBarOptions = {
-  tabBarStyle: {
-    backgroundColor: COLORS.white,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.borderLight,
-    height: 64,
-    paddingBottom: 10,
-    paddingTop: 4,
-  },
-  tabBarActiveTintColor: COLORS.primary,
-  tabBarInactiveTintColor: COLORS.muted,
-  headerShown: false,
-};
+function useTabBarScreenOptions() {
+  const insets = useSafeAreaInsets();
+  const bottomPad = Platform.OS === 'android'
+    ? Math.max(insets.bottom, 0) + 10
+    : insets.bottom + 6;
+  return {
+    tabBarStyle: {
+      backgroundColor: COLORS.white,
+      borderTopWidth: 1,
+      borderTopColor: COLORS.borderLight,
+      height: 56 + bottomPad,
+      paddingBottom: bottomPad,
+      paddingTop: 4,
+    },
+    tabBarActiveTintColor: COLORS.primary,
+    tabBarInactiveTintColor: COLORS.muted,
+    headerShown: false,
+  };
+}
 
 const headerOpts = { headerShown: true, headerTintColor: COLORS.primary, headerBackTitle: '' };
 
 // ─── Admin Tabs ───────────────────────────────────────────────────────────────
 function AdminTabs() {
   const { t } = useLanguage();
+  const tabBarScreenOptions = useTabBarScreenOptions();
   return (
-    <Tab.Navigator screenOptions={tabBarOptions}>
+    <Tab.Navigator screenOptions={tabBarScreenOptions}>
       <Tab.Screen
         name="AdminDashboard"
         component={AdminDashboard}
@@ -91,8 +99,9 @@ function AdminTabs() {
 // ─── Staff Tabs ───────────────────────────────────────────────────────────────
 function StaffTabs() {
   const { t } = useLanguage();
+  const tabBarScreenOptions = useTabBarScreenOptions();
   return (
-    <Tab.Navigator screenOptions={tabBarOptions}>
+    <Tab.Navigator screenOptions={tabBarScreenOptions}>
       <Tab.Screen
         name="StaffDashboard"
         component={StaffDashboard}

@@ -1,12 +1,12 @@
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG } from '../constants';
 import { StallConfig } from '../types';
+import { authService } from './authService';
 
 const api = axios.create({ baseURL: API_CONFIG.BASE_URL, timeout: API_CONFIG.TIMEOUT });
 
 api.interceptors.request.use(async (config) => {
-  const token = await AsyncStorage.getItem('chaisto_token');
+  const token = await authService.getStoredToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });

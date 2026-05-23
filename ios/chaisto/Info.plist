@@ -34,7 +34,9 @@
 		<true/>
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string></string>
+	<string>ChaistOps uses your location to verify you are at the stall when submitting reports.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>ChaistOps uses your location to verify stall presence.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>ChaistOps needs camera access to capture your profile photo.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

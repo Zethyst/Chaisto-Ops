@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   Alert, RefreshControl, ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
 import { fetchTodayReport, startNewReport } from '../../store/slices/reportSlice';
@@ -34,6 +35,7 @@ function currentMonth(): string {
 }
 
 export default function StaffDashboard({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const { user } = useSelector((s: RootState) => s.auth);
   const { todayReport, syncPending } = useSelector((s: RootState) => s.reports);
   const dispatch = useDispatch<AppDispatch>();
@@ -109,7 +111,7 @@ export default function StaffDashboard({ navigation }: any) {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primaryLight} />}
     >
       {/* Offline banner */}

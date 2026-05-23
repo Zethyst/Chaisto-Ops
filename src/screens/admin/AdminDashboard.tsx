@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   RefreshControl, Dimensions, ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LineChart, BarChart } from 'react-native-chart-kit';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
@@ -44,6 +45,7 @@ function formatRelTime(dateStr: string): string {
 }
 
 export default function AdminDashboard({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const { user } = useSelector((s: RootState) => s.auth);
   const { t } = useLanguage();
   const [analytics, setAnalytics] = useState<any>(null);
@@ -117,7 +119,7 @@ export default function AdminDashboard({ navigation }: any) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primaryLight} />}
     >
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
         <View style={styles.headerOrb} />
         <BrandedLogoMark size={52} />
         <View style={styles.headerTextCol}>

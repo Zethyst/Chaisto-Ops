@@ -4,6 +4,7 @@ import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import Toast from 'react-native-toast-message';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { store, persistor } from './src/store';
 import AppNavigator from './src/navigation/AppNavigator';
 import { fcmService } from './src/services/fcmService';
@@ -22,15 +23,17 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <Provider store={store}>
-        <PersistGate loading={null} persistor={persistor}>
-          <LanguageProvider>
-            <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
-            <AppNavigator />
-            <Toast />
-          </LanguageProvider>
-        </PersistGate>
-      </Provider>
+      <SafeAreaProvider>
+        <Provider store={store}>
+          <PersistGate loading={null} persistor={persistor}>
+            <LanguageProvider>
+              <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+              <AppNavigator />
+              <Toast />
+            </LanguageProvider>
+          </PersistGate>
+        </Provider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

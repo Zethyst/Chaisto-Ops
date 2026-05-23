@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   ActivityIndicator, RefreshControl,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { notificationService } from '../../services/notificationService';
 import { Notification } from '../../types';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS } from '../../constants';
@@ -33,6 +34,7 @@ function formatTime(dateStr: string): string {
 }
 
 export default function NotificationsScreen() {
+  const insets = useSafeAreaInsets();
   const { t } = useLanguage();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -87,7 +89,7 @@ export default function NotificationsScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Filter Tabs */}
       <View style={styles.filterRow}>
         {(['all', 'unread', 'alerts'] as Filter[]).map((f) => (
