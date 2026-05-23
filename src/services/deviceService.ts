@@ -23,7 +23,7 @@ export const deviceService = {
         PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
         {
           title: 'Location Permission Required',
-          message: 'ChaistOps needs location access to verify report location.',
+          message: 'ChaistoOps needs location access to verify report location.',
           buttonPositive: 'Allow',
           buttonNegative: 'Deny',
         }
@@ -39,7 +39,7 @@ export const deviceService = {
         PermissionsAndroid.PERMISSIONS.CAMERA,
         {
           title: 'Camera Permission Required',
-          message: 'ChaistOps needs camera access for report photos.',
+          message: 'ChaistoOps needs camera access for report photos.',
           buttonPositive: 'Allow',
           buttonNegative: 'Deny',
         }

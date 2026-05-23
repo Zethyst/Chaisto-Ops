@@ -116,7 +116,7 @@ export default function NotificationsScreen() {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>🔕</Text>
-            <Text style={styles.emptyTitle}>No notifications</Text>
+            <Text style={styles.emptyTitle}>{t('noNotifications')}</Text>
             <Text style={styles.emptySub}>You're all caught up</Text>
           </View>
         }

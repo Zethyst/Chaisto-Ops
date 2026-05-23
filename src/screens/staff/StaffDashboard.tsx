@@ -12,6 +12,7 @@ import { DailyReport, PayrollSummary } from '../../types';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
 import { haptics } from '../../utils/haptics';
 import { useLanguage } from '../../i18n';
+import BrandedLogoMark from '../../components/BrandedLogoMark';
 
 function lastNDays(n: number): string[] {
   return Array.from({ length: n }, (_, i) => {
@@ -126,10 +127,8 @@ export default function StaffDashboard({ navigation }: any) {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerOrb} />
-        <View style={styles.avatarCircle}>
-          <Text style={styles.avatarText}>{user?.name?.charAt(0) || 'S'}</Text>
-        </View>
-        <View style={{ flex: 1, marginLeft: SPACING.md }}>
+        <BrandedLogoMark size={52} />
+        <View style={styles.headerTextCol}>
           <Text style={styles.greeting}>{greeting},</Text>
           <Text style={styles.name}>{user?.name || 'Staff'}</Text>
           <Text style={styles.stall}>📍 {user?.stallName || 'Chaisto Civil Lines'}</Text>
@@ -322,12 +321,7 @@ const styles = StyleSheet.create({
     position: 'absolute', width: 160, height: 160, borderRadius: 80,
     backgroundColor: COLORS.primaryBg, top: -60, right: -40, opacity: 0.7,
   },
-  avatarCircle: {
-    width: 52, height: 52, borderRadius: BORDER_RADIUS.full,
-    backgroundColor: COLORS.primaryBg, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: COLORS.primaryLight,
-  },
-  avatarText: { color: COLORS.primaryLight, fontSize: FONT_SIZE.xl, fontWeight: '800' },
+  headerTextCol: { flex: 1, marginLeft: SPACING.md, minWidth: 0 },
   greeting: { fontSize: FONT_SIZE.sm, color: COLORS.muted },
   name: { fontSize: FONT_SIZE.lg, fontWeight: '800', color: COLORS.black },
   stall: { fontSize: FONT_SIZE.sm, color: COLORS.medium, marginTop: 2 },

@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, TextInput, ActivityIndicator, Switch,
+  Alert, TextInput, ActivityIndicator, Switch, Modal, Image,
 } from 'react-native';
+import { launchCamera, launchImageLibrary, ImagePickerResponse, MediaType } from 'react-native-image-picker';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
-import { logoutUser } from '../../store/slices/authSlice';
+import { logoutUser, setUser } from '../../store/slices/authSlice';
 import { authService } from '../../services/authService';
-import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
+import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS, CLOUDINARY_CONFIG } from '../../constants';
 import { haptics } from '../../utils/haptics';
 import { useLanguage } from '../../i18n';
+import axios from 'axios';
 
 export default function SettingsScreen() {
   const { user } = useSelector((s: RootState) => s.auth);
@@ -23,15 +25,108 @@ export default function SettingsScreen() {
   const [pwLoading, setPwLoading] = useState(false);
   const [notifEnabled, setNotifEnabled] = useState(true);
 
+  // Edit profile
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [editName, setEditName] = useState(user?.name ?? '');
+  const [pendingPhotoUri, setPendingPhotoUri] = useState<string | null>(null);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+
+  const handleOpenEditProfile = () => {
+    setEditName(user?.name ?? '');
+    setPendingPhotoUri(null);
+    haptics.selection();
+    setShowEditProfile(true);
+  };
+
+  const uploadToCloudinary = async (uri: string): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', { uri, type: 'image/jpeg', name: 'profile.jpg' } as any);
+    formData.append('upload_preset', CLOUDINARY_CONFIG.UPLOAD_PRESET);
+    formData.append('folder', `${CLOUDINARY_CONFIG.FOLDER}/profiles`);
+    const res = await axios.post(
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.CLOUD_NAME}/image/upload`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    return res.data.secure_url;
+  };
+
+  const handlePickPhoto = () => {
+    haptics.selection();
+    Alert.alert(t('changePhoto'), '', [
+      {
+        text: '📷  ' + t('takePhoto'),
+        onPress: () => launchCamera(
+          { mediaType: 'photo' as MediaType, quality: 0.7, saveToPhotos: false },
+          (res) => handlePickerResponse(res)
+        ),
+      },
+      {
+        text: '🖼  ' + t('chooseFromGallery'),
+        onPress: () => launchImageLibrary(
+          { mediaType: 'photo' as MediaType, quality: 0.7, selectionLimit: 1 },
+          (res) => handlePickerResponse(res)
+        ),
+      },
+      { text: t('cancel'), style: 'cancel' },
+    ]);
+  };
+
+  const handlePickerResponse = async (res: ImagePickerResponse) => {
+    if (res.didCancel || res.errorCode) return;
+    const uri = res.assets?.[0]?.uri;
+    if (!uri) return;
+    setPhotoUploading(true);
+    try {
+      const url = await uploadToCloudinary(uri);
+      setPendingPhotoUri(url);
+      haptics.success();
+    } catch {
+      haptics.error();
+      Alert.alert('Upload Failed', 'Could not upload photo. Try again.');
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editName.trim()) {
+      Alert.alert('Name Required', 'Please enter your name.');
+      return;
+    }
+    haptics.medium();
+    setProfileSaving(true);
+    try {
+      const updates: { name?: string; profilePhoto?: string } = {};
+      if (editName.trim() !== user?.name) updates.name = editName.trim();
+      if (pendingPhotoUri) updates.profilePhoto = pendingPhotoUri;
+      if (!updates.name && !updates.profilePhoto) {
+        setShowEditProfile(false);
+        return;
+      }
+      const updated = await authService.updateProfile(user!.id, updates);
+      dispatch(setUser({ ...user!, ...updates, name: updated.name, profilePhoto: updated.profilePhoto }));
+      haptics.success();
+      Alert.alert('Saved', 'Profile updated successfully.');
+      setShowEditProfile(false);
+    } catch (err: any) {
+      haptics.error();
+      Alert.alert('Error', err.response?.data?.error || 'Could not save profile.');
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
   const handleLogout = () => {
     haptics.heavy();
     Alert.alert(
-      'Sign Out',
-      'You will need to sign back in to access the app.',
+      t('signOut'),
+      t('signOutConfirm'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Sign Out',
+          text: t('signOut'),
           style: 'destructive',
           onPress: () => { haptics.heavy(); dispatch(logoutUser()); },
         },
@@ -76,11 +171,14 @@ export default function SettingsScreen() {
 
       {/* Profile Card */}
       <View style={styles.profileCard}>
-        <View style={[styles.avatar, { backgroundColor: roleBg }]}>
-          <Text style={[styles.avatarText, { color: roleColor }]}>
-            {user?.name?.charAt(0).toUpperCase() || 'U'}
-          </Text>
-        </View>
+        <TouchableOpacity onPress={handleOpenEditProfile} activeOpacity={0.85}>
+          <View style={[styles.avatar, { backgroundColor: roleBg }]}>
+            {user?.profilePhoto
+              ? <Image source={{ uri: user.profilePhoto }} style={styles.avatarImage} />
+              : <Text style={[styles.avatarText, { color: roleColor }]}>{user?.name?.charAt(0).toUpperCase() || 'U'}</Text>}
+            <View style={styles.editPhotoOverlay}><Text style={styles.editPhotoIcon}>✏️</Text></View>
+          </View>
+        </TouchableOpacity>
         <View style={styles.profileInfo}>
           <Text style={styles.profileName}>{user?.name}</Text>
           <View style={[styles.roleBadge, { backgroundColor: roleBg }]}>
@@ -89,11 +187,14 @@ export default function SettingsScreen() {
           <Text style={styles.profilePhone}>+91 {user?.phone}</Text>
           {user?.stallName && <Text style={styles.profileStall}>📍 {user.stallName}</Text>}
         </View>
+        <TouchableOpacity style={styles.editProfileBtn} onPress={handleOpenEditProfile}>
+          <Text style={styles.editProfileBtnText}>{t('editProfile')}</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Security Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionHeader}>SECURITY</Text>
+        <Text style={styles.sectionHeader}>{t('security').toUpperCase()}</Text>
 
         <TouchableOpacity
           style={styles.row}
@@ -101,16 +202,16 @@ export default function SettingsScreen() {
         >
           <View style={styles.rowLeft}>
             <Text style={styles.rowIcon}>🔑</Text>
-            <Text style={styles.rowLabel}>Change Password</Text>
+            <Text style={styles.rowLabel}>{t('changePassword')}</Text>
           </View>
           <Text style={styles.rowChevron}>{showPwForm ? '▲' : '▼'}</Text>
         </TouchableOpacity>
 
         {showPwForm && (
           <View style={styles.pwForm}>
-            <PwField label="Current password" value={oldPw} onChange={setOldPw} />
-            <PwField label="New password" value={newPw} onChange={setNewPw} />
-            <PwField label="Confirm new password" value={confirmPw} onChange={setConfirmPw} />
+            <PwField label={t('currentPassword')} value={oldPw} onChange={setOldPw} />
+            <PwField label={t('newPassword')} value={newPw} onChange={setNewPw} />
+            <PwField label={t('confirmPassword')} value={confirmPw} onChange={setConfirmPw} />
             <TouchableOpacity
               style={[styles.pwBtn, pwLoading && { opacity: 0.6 }]}
               onPress={handleChangePassword}
@@ -118,7 +219,7 @@ export default function SettingsScreen() {
             >
               {pwLoading
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <Text style={styles.pwBtnText}>Update Password</Text>}
+                : <Text style={styles.pwBtnText}>{t('updatePassword')}</Text>}
             </TouchableOpacity>
           </View>
         )}
@@ -126,13 +227,13 @@ export default function SettingsScreen() {
 
       {/* Notifications Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionHeader}>NOTIFICATIONS</Text>
+        <Text style={styles.sectionHeader}>{t('notificationsSection').toUpperCase()}</Text>
         <View style={styles.row}>
           <View style={styles.rowLeft}>
             <Text style={styles.rowIcon}>🔔</Text>
             <View>
-              <Text style={styles.rowLabel}>Push Notifications</Text>
-              <Text style={styles.rowSub}>Receive alerts and reminders</Text>
+              <Text style={styles.rowLabel}>{t('pushNotifications')}</Text>
+              <Text style={styles.rowSub}>{t('pushNotificationsSub')}</Text>
             </View>
           </View>
           <Switch
@@ -174,13 +275,13 @@ export default function SettingsScreen() {
 
       {/* Account Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionHeader}>ACCOUNT</Text>
+        <Text style={styles.sectionHeader}>{t('accountSection').toUpperCase()}</Text>
         <View style={[styles.row, styles.rowDisabled]}>
           <View style={styles.rowLeft}>
             <Text style={styles.rowIcon}>📱</Text>
             <View>
-              <Text style={styles.rowLabel}>Device Binding</Text>
-              <Text style={styles.rowSub}>{user?.deviceId ? 'Bound to this device' : 'Not bound'}</Text>
+              <Text style={styles.rowLabel}>{t('deviceBinding')}</Text>
+              <Text style={styles.rowSub}>{user?.deviceId ? t('boundToDevice') : t('notBound')}</Text>
             </View>
           </View>
           <View style={[styles.deviceBadge, { backgroundColor: user?.deviceId ? COLORS.successBg : COLORS.warningBg }]}>
@@ -193,11 +294,11 @@ export default function SettingsScreen() {
 
       {/* About Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionHeader}>ABOUT</Text>
+        <Text style={styles.sectionHeader}>{t('aboutSection').toUpperCase()}</Text>
         <View style={[styles.row, styles.rowDisabled]}>
           <View style={styles.rowLeft}>
             <Text style={styles.rowIcon}>ℹ️</Text>
-            <Text style={styles.rowLabel}>ChaistOps</Text>
+            <Text style={styles.rowLabel}>ChaistoOps</Text>
           </View>
           <Text style={styles.rowValue}>v1.0</Text>
         </View>
@@ -211,10 +312,63 @@ export default function SettingsScreen() {
 
       {/* Logout */}
       <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.85}>
-        <Text style={styles.logoutText}>Sign Out</Text>
+        <Text style={styles.logoutText}>{t('signOut')}</Text>
       </TouchableOpacity>
 
-      <Text style={styles.footer}>🔒 Secured · GPS-tracked · Device-bound</Text>
+      <Text style={styles.footer}>{t('secured')}</Text>
+
+      {/* ── Edit Profile Modal ─────────────────────────────────────────────── */}
+      <Modal visible={showEditProfile} animationType="slide" transparent onRequestClose={() => setShowEditProfile(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{t('editProfile')}</Text>
+              <TouchableOpacity onPress={() => setShowEditProfile(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Avatar preview */}
+            <View style={styles.editAvatarWrap}>
+              <View style={[styles.editAvatar, { backgroundColor: roleBg }]}>
+                {(pendingPhotoUri || user?.profilePhoto)
+                  ? <Image source={{ uri: pendingPhotoUri ?? user!.profilePhoto! }} style={styles.editAvatarImage} />
+                  : <Text style={[styles.editAvatarText, { color: roleColor }]}>{editName.charAt(0).toUpperCase() || 'U'}</Text>}
+              </View>
+              <TouchableOpacity style={styles.cameraBtn} onPress={handlePickPhoto} disabled={photoUploading}>
+                {photoUploading
+                  ? <ActivityIndicator color={COLORS.primary} size="small" />
+                  : <Text style={styles.cameraBtnText}>📷  {t('changePhoto')}</Text>}
+              </TouchableOpacity>
+            </View>
+
+            {/* Name field */}
+            <View style={styles.editField}>
+              <Text style={styles.editLabel}>{t('displayName')}</Text>
+              <TextInput
+                style={styles.editInput}
+                value={editName}
+                onChangeText={setEditName}
+                placeholder={t('displayName')}
+                placeholderTextColor={COLORS.muted}
+                autoCapitalize="words"
+                maxLength={50}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.saveBtn, profileSaving && { opacity: 0.6 }]}
+              onPress={handleSaveProfile}
+              disabled={profileSaving}
+            >
+              {profileSaving
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={styles.saveBtnText}>{t('saveChanges')}</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </ScrollView>
   );
 }
@@ -314,4 +468,56 @@ const styles = StyleSheet.create({
   langOptionActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primaryBg },
   langText: { fontSize: FONT_SIZE.sm, color: COLORS.medium, fontWeight: '700' },
   langTextActive: { color: COLORS.primary },
+
+  avatarImage: { width: 64, height: 64, borderRadius: BORDER_RADIUS.full },
+  editPhotoOverlay: {
+    position: 'absolute', bottom: 0, right: 0,
+    backgroundColor: COLORS.primary, borderRadius: 10, width: 20, height: 20,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  editPhotoIcon: { fontSize: 10 },
+  editProfileBtn: {
+    position: 'absolute', top: SPACING.lg, right: SPACING.xl,
+    backgroundColor: COLORS.primaryBg, borderRadius: BORDER_RADIUS.full,
+    paddingHorizontal: SPACING.md, paddingVertical: 5,
+    borderWidth: 1, borderColor: COLORS.primary,
+  },
+  editProfileBtnText: { fontSize: 12, color: COLORS.primary, fontWeight: '700' },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalSheet: {
+    backgroundColor: COLORS.white, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    padding: SPACING.xl, paddingBottom: 40,
+  },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SPACING.xl },
+  modalTitle: { fontSize: FONT_SIZE.xl, fontWeight: '800', color: COLORS.black },
+  modalClose: { fontSize: 20, color: COLORS.muted, fontWeight: '700' },
+
+  editAvatarWrap: { alignItems: 'center', marginBottom: SPACING.xl },
+  editAvatar: {
+    width: 88, height: 88, borderRadius: BORDER_RADIUS.full,
+    alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.md,
+  },
+  editAvatarImage: { width: 88, height: 88, borderRadius: BORDER_RADIUS.full },
+  editAvatarText: { fontSize: 36, fontWeight: '800' },
+  cameraBtn: {
+    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.full,
+    paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  cameraBtnText: { fontSize: FONT_SIZE.sm, color: COLORS.primary, fontWeight: '700' },
+
+  editField: { marginBottom: SPACING.lg },
+  editLabel: { fontSize: FONT_SIZE.sm, color: COLORS.dark, fontWeight: '600', marginBottom: 6 },
+  editInput: {
+    borderWidth: 1, borderColor: COLORS.border, borderRadius: BORDER_RADIUS.sm,
+    paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
+    fontSize: FONT_SIZE.md, color: COLORS.black, backgroundColor: COLORS.surface,
+  },
+  saveBtn: {
+    backgroundColor: COLORS.primary, borderRadius: BORDER_RADIUS.md,
+    paddingVertical: SPACING.md, alignItems: 'center', marginTop: SPACING.sm,
+  },
+  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: FONT_SIZE.md },
+
 });

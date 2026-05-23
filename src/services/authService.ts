@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { Platform } from 'react-native';
 import * as Keychain from 'react-native-keychain';
 import { API_CONFIG } from '../constants';
 import { User } from '../types';
@@ -35,9 +36,13 @@ export const authService = {
   },
 
   async storeCredentials(token: string): Promise<void> {
+    // JWT must be readable silently for axios interceptors. Biometric `accessControl`
+    // requires NSFaceIDUsageDescription and prompts on read — omit it; rely on OS keychain.
     await Keychain.setGenericPassword('chaisto_token', token, {
       service: 'com.chaisto.ops',
-      accessControl: Keychain.ACCESS_CONTROL.BIOMETRY_ANY_OR_DEVICE_PASSCODE,
+      ...(Platform.OS === 'ios'
+        ? { accessible: Keychain.ACCESSIBLE.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY }
+        : {}),
     });
   },
 
@@ -59,6 +64,11 @@ export const authService = {
 
   async changePassword(userId: string, oldPassword: string, newPassword: string): Promise<void> {
     await api.post('/auth/change-password', { userId, oldPassword, newPassword });
+  },
+
+  async updateProfile(userId: string, data: { name?: string; profilePhoto?: string }): Promise<User> {
+    const response = await api.patch(`/users/${userId}/profile`, data);
+    return response.data;
   },
 
   async createStaffAccount(data: {

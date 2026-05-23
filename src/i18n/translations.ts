@@ -115,6 +115,12 @@ export const translations = {
     signOut: 'Sign Out',
     signOutConfirm: 'You will need to sign back in to access the app.',
     secured: '🔒 Secured · GPS-tracked · Device-bound',
+    editProfile: 'Edit Profile',
+    changePhoto: 'Change Photo',
+    takePhoto: 'Take Photo',
+    chooseFromGallery: 'Choose from Gallery',
+    displayName: 'Display Name',
+    saveChanges: 'Save Changes',
 
     // ── Screen titles (header bars) ────────────────────────────────────────────
     screenInventory: 'Inventory',
@@ -253,6 +259,12 @@ export const translations = {
     signOut: 'साइन आउट',
     signOutConfirm: 'ऐप में वापस आने के लिए दोबारा लॉगिन करना होगा।',
     secured: '🔒 सुरक्षित · GPS-ट्रैक्ड · डिवाइस-बाउंड',
+    editProfile: 'प्रोफ़ाइल संपादित करें',
+    changePhoto: 'फ़ोटो बदलें',
+    takePhoto: 'फ़ोटो लें',
+    chooseFromGallery: 'गैलरी से चुनें',
+    displayName: 'नाम',
+    saveChanges: 'सहेजें',
 
     // ── Screen titles ──────────────────────────────────────────────────────────
     screenInventory: 'स्टॉक',

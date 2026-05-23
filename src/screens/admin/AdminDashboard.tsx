@@ -10,6 +10,7 @@ import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../consta
 import { reportService } from '../../services/reportService';
 import { haptics } from '../../utils/haptics';
 import { useLanguage } from '../../i18n';
+import BrandedLogoMark from '../../components/BrandedLogoMark';
 
 const { width } = Dimensions.get('window');
 const chartWidth = width - SPACING.xl * 2 - 8;
@@ -118,7 +119,8 @@ export default function AdminDashboard({ navigation }: any) {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerOrb} />
-        <View style={{ flex: 1 }}>
+        <BrandedLogoMark size={52} />
+        <View style={styles.headerTextCol}>
           <Text style={styles.greeting}>{greeting} 👋</Text>
           <Text style={styles.headerName}>{user?.name || 'Admin'}</Text>
         </View>
@@ -358,6 +360,7 @@ const styles = StyleSheet.create({
     position: 'absolute', width: 180, height: 180, borderRadius: 90,
     backgroundColor: COLORS.primaryBg, top: -80, right: -40, opacity: 0.8,
   },
+  headerTextCol: { flex: 1, marginLeft: SPACING.md, minWidth: 0 },
   greeting: { fontSize: FONT_SIZE.sm, color: COLORS.muted },
   headerName: { fontSize: FONT_SIZE.xl, fontWeight: '800', color: COLORS.black },
   notifBtn: { position: 'relative', padding: SPACING.sm },

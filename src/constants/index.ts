@@ -153,7 +153,7 @@ function resolveDevApiBaseUrl(): string {
 }
 
 export const API_CONFIG = {
-  BASE_URL: __DEV__ ? resolveDevApiBaseUrl() : 'https://api.chaisto-ops.com/v1',
+  BASE_URL: __DEV__ ? resolveDevApiBaseUrl() : 'https://chaisto-ops.onrender.com/v1',
   TIMEOUT: 15000,
   RETRY_ATTEMPTS: 3,
 };

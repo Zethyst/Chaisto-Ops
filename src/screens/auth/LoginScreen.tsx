@@ -8,6 +8,7 @@ import { loginUser, clearError } from '../../store/slices/authSlice';
 import { AppDispatch, RootState } from '../../store';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS } from '../../constants';
 import { haptics } from '../../utils/haptics';
+import BrandedLogoMark from '../../components/BrandedLogoMark';
 
 export default function LoginScreen() {
   const [phone, setPhone] = useState('');
@@ -50,11 +51,11 @@ export default function LoginScreen() {
       <View style={styles.inner}>
         {/* Logo Area */}
         <View style={styles.logoArea}>
-          <View style={styles.logoRing}>
-            <Text style={styles.logoEmoji}>☕</Text>
+          <View style={styles.logoMarkWrap}>
+            <BrandedLogoMark />
           </View>
           <Text style={styles.appName}>CHAISTO OPS</Text>
-          <Text style={styles.tagline}>Stall Management System</Text>
+          <Text style={styles.tagline}>Cart Management System</Text>
         </View>
 
         {/* Form Card */}
@@ -111,7 +112,7 @@ export default function LoginScreen() {
           </TouchableOpacity>
 
           <View style={styles.helpRow}>
-            <Text style={styles.helpText}>Forgot password? Contact your admin.</Text>
+            <Text style={styles.helpText}>Forgot password? Contact Akshat Jaiswal.</Text>
           </View>
         </View>
 
@@ -120,7 +121,7 @@ export default function LoginScreen() {
           <Text style={styles.securityText}>🔒 Secured · GPS-tracked · Device-bound</Text>
         </View>
 
-        <Text style={styles.version}>ChaistOps v1.0 · Civil Lines, Prayagraj</Text>
+        <Text style={styles.version}>ChaistoOps v1.0 · Civil Lines, Prayagraj</Text>
       </View>
     </KeyboardAvoidingView>
   );
@@ -151,24 +152,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SPACING.xxxl,
   },
-  logoRing: {
-    width: 96,
-    height: 96,
-    borderRadius: BORDER_RADIUS.xl,
-    borderWidth: 2,
-    borderColor: COLORS.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+  logoMarkWrap: {
     marginBottom: SPACING.lg,
-    backgroundColor: COLORS.primaryBg,
-    shadowColor: COLORS.primaryDark,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  logoEmoji: {
-    fontSize: 44,
   },
   appName: {
     fontSize: FONT_SIZE.xxl,

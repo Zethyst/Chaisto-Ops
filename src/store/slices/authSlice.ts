@@ -12,7 +12,7 @@ function loginErrorMessage(error: unknown): string {
   if (!error.response) {
     return [
       `Cannot reach the API at ${API_CONFIG.BASE_URL}.`,
-      'Check: backend is running on that port (`/health`), Mac firewall allows inbound,',
+      'Check: backend is running on that port (`GET /health` or `GET /v1/health`), Mac firewall allows inbound,',
       'and on a physical phone you are on the same Wi‑Fi with the correct LAN IP.',
     ].join(' ');
   }

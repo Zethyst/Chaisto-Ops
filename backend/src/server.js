@@ -16,6 +16,27 @@ const { scheduleJobs } = require('./services/scheduledJobs');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Render, Fly, etc. sit behind a reverse proxy and send X-Forwarded-For. Required for
+// express-rate-limit to trust req.ip; see ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
+if (process.env.TRUST_PROXY === 'false') {
+  app.set('trust proxy', false);
+} else {
+  const n = Number(process.env.TRUST_PROXY);
+  app.set('trust proxy', Number.isFinite(n) && n >= 0 ? n : 1);
+}
+
+// ─── Health check (before rate limit — platform probes + cheap sanity checks) ─
+function healthPayload() {
+  return {
+    status: 'ok',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+    env: process.env.NODE_ENV,
+  };
+}
+app.get('/health', (req, res) => res.json(healthPayload()));
+app.get('/v1/health', (req, res) => res.json(healthPayload()));
+
 // ─── Security Middleware ──────────────────────────────────────────────────────
 app.use(helmet());
 app.use(compression());
@@ -37,16 +58,6 @@ app.use(rateLimit({
 app.use(express.json({ limit: '5mb' })); // generous for photo metadata
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
-
-// ─── Health check ─────────────────────────────────────────────────────────────
-app.get('/health', (req, res) =>
-  res.json({
-    status: 'ok',
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
-    env: process.env.NODE_ENV,
-  })
-);
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use('/v1/auth', authRoutes);
@@ -89,7 +100,7 @@ mongoose.connect(process.env.MONGODB_URI, {
   console.log('✅ MongoDB connected');
   // Bind all IPv4 interfaces so phones on the LAN can reach you via http://<your-ip>:PORT
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 ChaistOps API running on port ${PORT}`);
+    console.log(`🚀 ChaistoOps API running on port ${PORT}`);
     console.log(`   Environment: ${process.env.NODE_ENV}`);
     scheduleJobs();
   });

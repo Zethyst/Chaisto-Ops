@@ -99,7 +99,7 @@ export default function CameraCaptureScreen({ navigation, route }: any) {
         captureAudio={false}
         androidCameraPermissionOptions={{
           title: 'Camera Required',
-          message: 'ChaistOps needs camera access to capture report photos.',
+          message: 'ChaistoOps needs camera access to capture report photos.',
           buttonPositive: 'Allow',
         }}
       >
