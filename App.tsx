@@ -10,6 +10,7 @@ import AppNavigator from './src/navigation/AppNavigator';
 import { fcmService } from './src/services/fcmService';
 import { COLORS } from './src/constants';
 import { LanguageProvider } from './src/i18n';
+import { AlertProvider } from './src/components/AppAlert';
 
 LogBox.ignoreLogs(['Non-serializable values were found in the navigation state']);
 
@@ -27,9 +28,11 @@ export default function App() {
         <Provider store={store}>
           <PersistGate loading={null} persistor={persistor}>
             <LanguageProvider>
-              <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
-              <AppNavigator />
-              <Toast />
+              <AlertProvider>
+                <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+                <AppNavigator />
+                <Toast />
+              </AlertProvider>
             </LanguageProvider>
           </PersistGate>
         </Provider>

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert, ActivityIndicator, RefreshControl, Modal,
+  TextInput,  ActivityIndicator, RefreshControl, Modal,
 } from 'react-native';
+import { showAlert } from '../../components/AppAlert';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { wastageService } from '../../services/wastageService';
@@ -44,7 +45,7 @@ export default function WastageLogScreen() {
       const data = await wastageService.getWastageLogs({ stallId: isAdmin ? undefined : user?.stallId, month: currentMonth() });
       setLogs(data);
     } catch {
-      Alert.alert('Error', 'Could not load wastage logs');
+      showAlert('Error', 'Could not load wastage logs');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -56,7 +57,7 @@ export default function WastageLogScreen() {
   const handleSave = async () => {
     const qty = parseFloat(quantity);
     if (!quantity || isNaN(qty) || qty <= 0) {
-      Alert.alert('Invalid Quantity', 'Enter a valid quantity.');
+      showAlert('Invalid Quantity', 'Enter a valid quantity.');
       return;
     }
     haptics.medium();
@@ -76,7 +77,7 @@ export default function WastageLogScreen() {
       load();
     } catch (err: any) {
       haptics.error();
-      Alert.alert('Error', err.response?.data?.error || 'Could not save');
+      showAlert('Error', err.response?.data?.error || 'Could not save');
     } finally {
       setSaving(false);
     }

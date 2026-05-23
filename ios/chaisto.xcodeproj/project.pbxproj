@@ -13,6 +13,7 @@
 		B7468C582C21004100EAD002 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		B7E71D042C21005200CA0006 /* AppDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = B7E71D032C21005200CA0005 /* AppDelegate.mm */; };
 		B7E71D082C21005200CA0008 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = B7E71D072C21005200CA0007 /* main.m */; };
+		F5C0CAB97E464AB7BF45D36A /* GreatVibes-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 94634DC310DB4BDDB03C93F3 /* GreatVibes-Regular.ttf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -23,6 +24,7 @@
 		3B4392A12AC88292D35C810B /* Pods-chaisto.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-chaisto.debug.xcconfig"; path = "Target Support Files/Pods-chaisto/Pods-chaisto.debug.xcconfig"; sourceTree = "<group>"; };
 		5709B34CF0A7D63546082F79 /* Pods-chaisto.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-chaisto.release.xcconfig"; path = "Target Support Files/Pods-chaisto/Pods-chaisto.release.xcconfig"; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = chaisto/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		94634DC310DB4BDDB03C93F3 /* GreatVibes-Regular.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "GreatVibes-Regular.ttf"; path = "../src/assets/fonts/GreatVibes-Regular.ttf"; sourceTree = "<group>"; };
 		ADF631A60C2A5372BBCA2433 /* Pods_chaisto.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_chaisto.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B7E71D022C21005200CA0004 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = AppDelegate.h; path = chaisto/AppDelegate.h; sourceTree = "<group>"; };
 		B7E71D032C21005200CA0005 /* AppDelegate.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = AppDelegate.mm; path = chaisto/AppDelegate.mm; sourceTree = "<group>"; };
@@ -80,6 +82,7 @@
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
 				BBD78D7AC51CEA395F1C20DB /* Pods */,
+				B4C3FBEABDBC401698DB370B /* Resources */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -92,6 +95,15 @@
 				13B07F961A680F5B00A75B9A /* chaisto.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		B4C3FBEABDBC401698DB370B /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				94634DC310DB4BDDB03C93F3 /* GreatVibes-Regular.ttf */,
+			);
+			name = Resources;
+			path = "";
 			sourceTree = "<group>";
 		};
 		BBD78D7AC51CEA395F1C20DB /* Pods */ = {
@@ -167,6 +179,7 @@
 				B7468C582C21004100EAD002 /* PrivacyInfo.xcprivacy in Resources */,
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
+				F5C0CAB97E464AB7BF45D36A /* GreatVibes-Regular.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

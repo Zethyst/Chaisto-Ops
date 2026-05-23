@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, ActivityIndicator, RefreshControl, TextInput, Modal,
+   ActivityIndicator, RefreshControl, TextInput, Modal,
 } from 'react-native';
+import { showAlert } from '../../components/AppAlert';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { payrollService } from '../../services/payrollService';
@@ -35,7 +36,7 @@ export default function PayrollScreen() {
       const data = await payrollService.getAllPayroll({ month });
       setPayroll(data);
     } catch {
-      Alert.alert('Error', 'Could not load payroll');
+      showAlert('Error', 'Could not load payroll');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -54,7 +55,7 @@ export default function PayrollScreen() {
   const handleSaveSalary = async () => {
     const salary = parseFloat(salaryInput);
     if (isNaN(salary) || salary < 0) {
-      Alert.alert('Invalid', 'Enter a valid salary amount');
+      showAlert('Invalid', 'Enter a valid salary amount');
       return;
     }
     haptics.medium();
@@ -66,7 +67,7 @@ export default function PayrollScreen() {
       load();
     } catch (err: any) {
       haptics.error();
-      Alert.alert('Error', err.response?.data?.error || 'Could not update salary');
+      showAlert('Error', err.response?.data?.error || 'Could not update salary');
     } finally {
       setSavingSalary(false);
     }

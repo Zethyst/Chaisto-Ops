@@ -7,6 +7,14 @@ export const deviceService = {
     return DeviceInfo.getUniqueId();
   },
 
+  async getDeviceName(): Promise<string> {
+    try {
+      return await DeviceInfo.getDeviceName();
+    } catch {
+      return `${DeviceInfo.getBrand()} ${DeviceInfo.getModel()}`;
+    }
+  },
+
   async getDeviceInfo() {
     return {
       deviceId: await DeviceInfo.getUniqueId(),

@@ -24,9 +24,11 @@ import AuditLogScreen from '../screens/admin/AuditLogScreen';
 import AlertsConfigScreen from '../screens/admin/AlertsConfigScreen';
 import AttendanceScreen from '../screens/admin/AttendanceScreen';
 import PayrollScreen from '../screens/admin/PayrollScreen';
+import MenuPricingScreen from '../screens/admin/MenuPricingScreen';
 
 // Staff
 import StaffDashboard from '../screens/staff/StaffDashboard';
+import TallyScreen from '../screens/staff/TallyScreen';
 import DailyReportScreen from '../screens/staff/DailyReportScreen';
 import CameraCaptureScreen from '../screens/staff/CameraCaptureScreen';
 
@@ -46,9 +48,7 @@ function TabIcon({ icon, focused }: { icon: string; focused: boolean }) {
 
 function useTabBarScreenOptions() {
   const insets = useSafeAreaInsets();
-  const bottomPad = Platform.OS === 'android'
-    ? Math.max(insets.bottom, 0) + 10
-    : insets.bottom + 6;
+  const bottomPad = Platform.OS === 'android' ? Math.max(insets.bottom, 0) + 10 : 8;
   return {
     tabBarStyle: {
       backgroundColor: COLORS.white,
@@ -83,9 +83,9 @@ function AdminTabs() {
         options={{ title: t('tabStaff'), tabBarIcon: ({ focused }) => <TabIcon icon="👥" focused={focused} /> }}
       />
       <Tab.Screen
-        name="Notifications"
-        component={NotificationsScreen}
-        options={{ title: t('tabAlerts'), tabBarIcon: ({ focused }) => <TabIcon icon="🔔" focused={focused} /> }}
+        name="MenuPricingTab"
+        component={MenuPricingScreen}
+        options={{ title: 'Menu & Price', tabBarIcon: ({ focused }) => <TabIcon icon="☕" focused={focused} /> }}
       />
       <Tab.Screen
         name="Settings"
@@ -106,6 +106,11 @@ function StaffTabs() {
         name="StaffDashboard"
         component={StaffDashboard}
         options={{ title: t('tabHome'), tabBarIcon: ({ focused }) => <TabIcon icon="🏠" focused={focused} /> }}
+      />
+      <Tab.Screen
+        name="Tally"
+        component={TallyScreen}
+        options={{ title: 'Tally', tabBarIcon: ({ focused }) => <TabIcon icon="☕" focused={focused} /> }}
       />
       <Tab.Screen
         name="Notifications"
@@ -147,6 +152,7 @@ function AdminStack() {
       <Stack.Screen name="AlertsConfig" component={AlertsConfigScreen} options={{ ...headerOpts, title: t('screenAlertsConfig') }} />
       <Stack.Screen name="Attendance" component={AttendanceScreen} options={{ ...headerOpts, title: t('screenAttendance') }} />
       <Stack.Screen name="Payroll" component={PayrollScreen} options={{ ...headerOpts, title: t('screenPayroll') }} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ ...headerOpts, title: 'Notifications' }} />
     </Stack.Navigator>
   );
 }

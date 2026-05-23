@@ -6,10 +6,11 @@ const locationSchema = new mongoose.Schema({
 }, { _id: false });
 
 const stockSchema = new mongoose.Schema({
-  milk: { type: Number, default: 0, min: 0 },      // litres
-  sugar: { type: Number, default: 0, min: 0 },     // kg
-  teaLeaves: { type: Number, default: 0, min: 0 }, // grams
-  cups: { type: Number, default: 0, min: 0 },      // count
+  milk: { type: Number, default: 0, min: 0 },         // litres
+  sugar: { type: Number, default: 0, min: 0 },        // kg
+  teaLeaves: { type: Number, default: 0, min: 0 },    // grams
+  cups: { type: Number, default: 0, min: 0 },         // paper cup count
+  kulhadCups: { type: Number, default: 0, min: 0 },   // kulhad cup count
 }, { _id: false });
 
 const flagSchema = new mongoose.Schema({
@@ -38,6 +39,7 @@ const reportSchema = new mongoose.Schema({
   sales: {
     regularCups: { type: Number, default: 0, min: 0 },
     specialCups: { type: Number, default: 0, min: 0 },
+    kulhadCups: { type: Number, default: 0, min: 0 },
     snacks: { type: Number, default: 0, min: 0 }, // ₹
   },
   payments: {
@@ -96,7 +98,7 @@ reportSchema.pre('save', function (next) {
 
   const milkUsed = (openingStock.milk + purchases.milk) - closingStock.milk;
   const expectedCups = milkUsed * CUPS_PER_LITRE;
-  const totalCups = (sales.regularCups || 0) + (sales.specialCups || 0);
+  const totalCups = (sales.regularCups || 0) + (sales.specialCups || 0) + (sales.kulhadCups || 0);
   const totalRevenue = (payments.upi || 0) + (payments.cash || 0);
   const revenuePerCup = totalCups > 0 ? totalRevenue / totalCups : 0;
   const upiRatio = totalRevenue > 0 ? payments.upi / totalRevenue : 0;

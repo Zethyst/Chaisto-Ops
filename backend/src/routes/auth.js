@@ -69,7 +69,7 @@ router.post('/login', loginLimiter, [
 
 // ─── POST /auth/bind-device ───────────────────────────────────────────────────
 router.post('/bind-device', authenticate, async (req, res) => {
-  const { userId, deviceId } = req.body;
+  const { userId, deviceId, deviceName } = req.body;
 
   // Only allow binding for own account or admin binding for staff
   if (req.user.role === 'staff' && req.user._id.toString() !== userId) {
@@ -83,7 +83,7 @@ router.post('/bind-device', authenticate, async (req, res) => {
       return res.status(409).json({ error: 'Account already bound to a different device. Contact admin to reset.' });
     }
 
-    await User.findByIdAndUpdate(userId, { deviceId });
+    await User.findByIdAndUpdate(userId, { deviceId, ...(deviceName ? { deviceName } : {}) });
     res.json({ message: 'Device bound successfully' });
   } catch (err) {
     res.status(500).json({ error: 'Could not bind device' });

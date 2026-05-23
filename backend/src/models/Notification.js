@@ -12,6 +12,9 @@ const notificationSchema = new mongoose.Schema({
   data: { type: Object, default: {} },
   read: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now, index: true },
+}, {
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true },
 });
 
 module.exports = mongoose.model('Notification', notificationSchema);

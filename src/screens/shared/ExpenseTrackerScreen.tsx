@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert, ActivityIndicator, RefreshControl, Modal,
+  TextInput,  ActivityIndicator, RefreshControl, Modal,
 } from 'react-native';
+import { showAlert } from '../../components/AppAlert';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { expenseService } from '../../services/expenseService';
@@ -43,7 +44,7 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
       });
       setExpenses(data);
     } catch {
-      Alert.alert('Error', 'Could not load expenses');
+      showAlert('Error', 'Could not load expenses');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -55,7 +56,7 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
   const handleSave = async () => {
     const amt = parseFloat(amount);
     if (!amount || isNaN(amt) || amt < 1) {
-      Alert.alert('Invalid Amount', 'Enter a valid amount (min ₹1).');
+      showAlert('Invalid Amount', 'Enter a valid amount (min ₹1).');
       return;
     }
     haptics.medium();
@@ -76,14 +77,14 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
       load();
     } catch (err: any) {
       haptics.error();
-      Alert.alert('Error', err.response?.data?.error || 'Could not save expense');
+      showAlert('Error', err.response?.data?.error || 'Could not save expense');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = (id: string) => {
-    Alert.alert('Delete Expense', 'Are you sure?', [
+    showAlert('Delete Expense', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive', onPress: async () => {
@@ -92,7 +93,7 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
             await expenseService.deleteExpense(id);
             setExpenses((prev) => prev.filter((e) => e.id !== id && (e as any)._id !== id));
           } catch {
-            Alert.alert('Error', 'Could not delete expense');
+            showAlert('Error', 'Could not delete expense');
           }
         },
       },

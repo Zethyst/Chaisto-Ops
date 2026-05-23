@@ -2,6 +2,7 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { DailyReport, SuspicionFlag } from '../../types';
 import { reportService } from '../../services/reportService';
 import { BREW_CONSTANTS } from '../../constants';
+import { TallyData, ITEM_KEY_TO_SALES_FIELD } from './menuSlice';
 
 interface ReportState {
   currentDraft: Partial<DailyReport> | null;
@@ -33,7 +34,7 @@ export function computeReportMetrics(report: Partial<DailyReport>): {
   const { openingStock, purchases, sales, payments, closingStock } = report;
   const flags: SuspicionFlag[] = [];
 
-  const totalCups = (sales?.regularCups || 0) + (sales?.specialCups || 0);
+  const totalCups = (sales?.regularCups || 0) + (sales?.specialCups || 0) + (sales?.kulhadCups || 0);
   const milkUsed = (openingStock?.milk || 0) + (purchases?.milk || 0) - (closingStock?.milk || 0);
   const expectedCupsFromMilk = milkUsed * BREW_CONSTANTS.CUPS_PER_LITRE;
   const totalRevenue = (payments?.upi || 0) + (payments?.cash || 0);
@@ -137,11 +138,11 @@ const reportSlice = createSlice({
         status: 'draft',
         flags: [],
         photos: { cash: '', cartClosing: '', stock: '', milkPacket: '' },
-        openingStock: { milk: 0, sugar: 0, teaLeaves: 0, cups: 0 },
+        openingStock: { milk: 0, sugar: 0, teaLeaves: 0, cups: 0, kulhadCups: 0 },
         purchases: { milk: 0, snacks: 0 },
-        sales: { regularCups: 0, specialCups: 0, snacks: 0 },
+        sales: { regularCups: 0, specialCups: 0, kulhadCups: 0, snacks: 0 },
         payments: { upi: 0, cash: 0 },
-        closingStock: { milk: 0, sugar: 0, teaLeaves: 0, cups: 0 },
+        closingStock: { milk: 0, sugar: 0, teaLeaves: 0, cups: 0, kulhadCups: 0 },
       };
       state.currentStep = 0;
     },
@@ -168,6 +169,24 @@ const reportSlice = createSlice({
     },
     setSyncPending: (state, action: PayloadAction<boolean>) => {
       state.syncPending = action.payload;
+    },
+    preFillFromTally: (state, action: PayloadAction<TallyData>) => {
+      if (!state.currentDraft) return;
+      const tally = action.payload;
+      // Map tally counters to known sales fields
+      const salesPatch: Record<string, number> = {};
+      Object.entries(tally.counters).forEach(([key, count]) => {
+        const field = ITEM_KEY_TO_SALES_FIELD[key];
+        if (field) salesPatch[field] = count;
+      });
+      state.currentDraft.sales = {
+        ...(state.currentDraft.sales || {}),
+        ...salesPatch,
+      } as any;
+      state.currentDraft.payments = {
+        upi: tally.upi,
+        cash: tally.cash,
+      };
     },
   },
   extraReducers: (builder) => {
@@ -196,6 +215,6 @@ const reportSlice = createSlice({
 
 export const {
   startNewReport, updateDraftSection, addPhoto,
-  setStep, clearDraft, setSyncPending,
+  setStep, clearDraft, setSyncPending, preFillFromTally,
 } = reportSlice.actions;
 export default reportSlice.reducer;

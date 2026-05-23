@@ -6,6 +6,7 @@ export const translations = {
     goodMorning: 'Good morning',
     goodAfternoon: 'Good afternoon',
     goodEvening: 'Good evening',
+    goodNight: 'Good night',
 
     // ── Tab bar ────────────────────────────────────────────────────────────────
     tabDashboard: 'Dashboard',
@@ -150,6 +151,7 @@ export const translations = {
     goodMorning: 'सुप्रभात',
     goodAfternoon: 'शुभ दोपहर',
     goodEvening: 'शुभ संध्या',
+    goodNight: 'शुभ रात्रि',
 
     // ── Tab bar ────────────────────────────────────────────────────────────────
     tabDashboard: 'डैशबोर्ड',

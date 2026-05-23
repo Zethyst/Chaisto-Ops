@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, ActivityIndicator, TextInput,
+   ActivityIndicator, TextInput,
 } from 'react-native';
+import { showAlert } from '../../components/AppAlert';
 import { stallConfigService } from '../../services/stallConfigService';
 import { StallConfig } from '../../types';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
@@ -101,7 +102,7 @@ export default function AlertsConfigScreen({ route, navigation }: Props) {
       setDraft({ ...c });
       setLoading(false);
     }).catch(() => {
-      Alert.alert('Error', 'Could not load config');
+      showAlert('Error', 'Could not load config');
       setLoading(false);
     });
   }, [stallId]);
@@ -120,10 +121,10 @@ export default function AlertsConfigScreen({ route, navigation }: Props) {
       setConfig(updated);
       setHasChanges(false);
       haptics.success();
-      Alert.alert('Saved', 'Alert thresholds updated successfully.');
+      showAlert('Saved', 'Alert thresholds updated successfully.');
     } catch (err: any) {
       haptics.error();
-      Alert.alert('Error', err.response?.data?.error || 'Could not save config');
+      showAlert('Error', err.response?.data?.error || 'Could not save config');
     } finally {
       setSaving(false);
     }
@@ -206,12 +207,13 @@ export default function AlertsConfigScreen({ route, navigation }: Props) {
 
       {/* Actions */}
       <View style={styles.actionRow}>
-        {hasChanges && (
-          <TouchableOpacity style={styles.resetBtn} onPress={handleReset}>
+        {hasChanges ? (
+          <TouchableOpacity key="reset" style={styles.resetBtn} onPress={handleReset}>
             <Text style={styles.resetText}>Reset</Text>
           </TouchableOpacity>
-        )}
+        ) : null}
         <TouchableOpacity
+          key="save"
           style={[styles.saveBtn, (!hasChanges || saving) && { opacity: 0.5 }, !hasChanges && { flex: 0.5 }]}
           onPress={handleSave}
           disabled={!hasChanges || saving}

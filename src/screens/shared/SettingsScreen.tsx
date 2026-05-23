@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, TextInput, ActivityIndicator, Switch, Modal, Image,
+   TextInput, ActivityIndicator, Switch, Modal, Image,
 } from 'react-native';
+import { showAlert } from '../../components/AppAlert';
 import { launchCamera, launchImageLibrary, ImagePickerResponse, MediaType } from 'react-native-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
 import { logoutUser, setUser } from '../../store/slices/authSlice';
 import { authService } from '../../services/authService';
+import DeviceInfo from 'react-native-device-info';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS, CLOUDINARY_CONFIG } from '../../constants';
 import { haptics } from '../../utils/haptics';
 import { useLanguage } from '../../i18n';
@@ -26,6 +28,12 @@ export default function SettingsScreen() {
   const [confirmPw, setConfirmPw] = useState('');
   const [pwLoading, setPwLoading] = useState(false);
   const [notifEnabled, setNotifEnabled] = useState(true);
+
+  const [deviceName, setDeviceName] = useState<string | null>(null);
+
+  useEffect(() => {
+    DeviceInfo.getDeviceName().then(setDeviceName).catch(() => {});
+  }, []);
 
   // Edit profile
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -56,23 +64,27 @@ export default function SettingsScreen() {
 
   const handlePickPhoto = () => {
     haptics.selection();
-    Alert.alert(t('changePhoto'), '', [
-      {
-        text: '📷  ' + t('takePhoto'),
-        onPress: () => launchCamera(
-          { mediaType: 'photo' as MediaType, quality: 0.7, saveToPhotos: false },
-          (res) => handlePickerResponse(res)
-        ),
-      },
-      {
-        text: '🖼  ' + t('chooseFromGallery'),
-        onPress: () => launchImageLibrary(
-          { mediaType: 'photo' as MediaType, quality: 0.7, selectionLimit: 1 },
-          (res) => handlePickerResponse(res)
-        ),
-      },
-      { text: t('cancel'), style: 'cancel' },
-    ]);
+    showAlert({
+      title: t('changePhoto'),
+      type: 'sheet',
+      buttons: [
+        {
+          text: '📷  ' + t('takePhoto'),
+          onPress: () => launchCamera(
+            { mediaType: 'photo' as MediaType, quality: 0.7, saveToPhotos: false },
+            (res) => handlePickerResponse(res)
+          ),
+        },
+        {
+          text: '🖼  ' + t('chooseFromGallery'),
+          onPress: () => launchImageLibrary(
+            { mediaType: 'photo' as MediaType, quality: 0.7, selectionLimit: 1 },
+            (res) => handlePickerResponse(res)
+          ),
+        },
+        { text: t('cancel'), style: 'cancel' as const },
+      ],
+    });
   };
 
   const handlePickerResponse = async (res: ImagePickerResponse) => {
@@ -88,7 +100,7 @@ export default function SettingsScreen() {
       haptics.error();
       const detail = err?.response?.data?.error?.message || err?.message || 'Unknown error';
       console.error('[Cloudinary upload error]', detail, err?.response?.data);
-      Alert.alert('Upload Failed', detail);
+      showAlert('Upload Failed', detail);
     } finally {
       setPhotoUploading(false);
     }
@@ -96,7 +108,7 @@ export default function SettingsScreen() {
 
   const handleSaveProfile = async () => {
     if (!editName.trim()) {
-      Alert.alert('Name Required', 'Please enter your name.');
+      showAlert('Name Required', 'Please enter your name.');
       return;
     }
     haptics.medium();
@@ -112,11 +124,11 @@ export default function SettingsScreen() {
       const updated = await authService.updateProfile(user!.id, updates);
       dispatch(setUser({ ...user!, ...updates, name: updated.name, profilePhoto: updated.profilePhoto }));
       haptics.success();
-      Alert.alert('Saved', 'Profile updated successfully.');
+      showAlert('Saved', 'Profile updated successfully.');
       setShowEditProfile(false);
     } catch (err: any) {
       haptics.error();
-      Alert.alert('Error', err.response?.data?.error || 'Could not save profile.');
+      showAlert('Error', err.response?.data?.error || 'Could not save profile.');
     } finally {
       setProfileSaving(false);
     }
@@ -124,7 +136,7 @@ export default function SettingsScreen() {
 
   const handleLogout = () => {
     haptics.heavy();
-    Alert.alert(
+    showAlert(
       t('signOut'),
       t('signOutConfirm'),
       [
@@ -140,15 +152,15 @@ export default function SettingsScreen() {
 
   const handleChangePassword = async () => {
     if (!oldPw || !newPw || !confirmPw) {
-      Alert.alert('Missing Fields', 'Please fill in all password fields.');
+      showAlert('Missing Fields', 'Please fill in all password fields.');
       return;
     }
     if (newPw.length < 8) {
-      Alert.alert('Weak Password', 'New password must be at least 8 characters.');
+      showAlert('Weak Password', 'New password must be at least 8 characters.');
       return;
     }
     if (newPw !== confirmPw) {
-      Alert.alert('Mismatch', 'New passwords do not match.');
+      showAlert('Mismatch', 'New passwords do not match.');
       return;
     }
     haptics.medium();
@@ -156,12 +168,12 @@ export default function SettingsScreen() {
     try {
       await authService.changePassword(user!.id, oldPw, newPw);
       haptics.success();
-      Alert.alert('Success', 'Password changed successfully.');
+      showAlert('Success', 'Password changed successfully.');
       setOldPw(''); setNewPw(''); setConfirmPw('');
       setShowPwForm(false);
     } catch (err: any) {
       haptics.error();
-      Alert.alert('Error', err.response?.data?.error || 'Could not change password.');
+      showAlert('Error', err.response?.data?.error || 'Could not change password.');
     } finally {
       setPwLoading(false);
     }
@@ -184,16 +196,18 @@ export default function SettingsScreen() {
           </View>
         </TouchableOpacity>
         <View style={styles.profileInfo}>
-          <Text style={styles.profileName}>{user?.name}</Text>
-          <View style={[styles.roleBadge, { backgroundColor: roleBg }]}>
-            <Text style={[styles.roleText, { color: roleColor }]}>{user?.role?.toUpperCase()}</Text>
+          <Text style={styles.profileName} numberOfLines={1}>{user?.name}</Text>
+          <View style={styles.profileNameRow}>
+            <View style={[styles.roleBadge, { backgroundColor: roleBg }]}>
+              <Text style={[styles.roleText, { color: roleColor }]}>{user?.role?.toUpperCase()}</Text>
+            </View>
+            <TouchableOpacity style={styles.editProfileBtn} onPress={handleOpenEditProfile}>
+              <Text style={styles.editProfileBtnText}>{t('editProfile')}</Text>
+            </TouchableOpacity>
           </View>
           <Text style={styles.profilePhone}>+91 {user?.phone}</Text>
           {user?.stallName && <Text style={styles.profileStall}>📍 {user.stallName}</Text>}
         </View>
-        <TouchableOpacity style={styles.editProfileBtn} onPress={handleOpenEditProfile}>
-          <Text style={styles.editProfileBtnText}>{t('editProfile')}</Text>
-        </TouchableOpacity>
       </View>
 
       {/* Security Section */}
@@ -285,14 +299,27 @@ export default function SettingsScreen() {
             <Text style={styles.rowIcon}>📱</Text>
             <View>
               <Text style={styles.rowLabel}>{t('deviceBinding')}</Text>
-              <Text style={styles.rowSub}>{user?.deviceId ? t('boundToDevice') : t('notBound')}</Text>
+              <Text style={styles.rowSub}>
+                {user?.role === 'staff'
+                  ? (user?.deviceId ? t('boundToDevice') : t('notBound'))
+                  : 'Not required for admins'}
+              </Text>
+              {user?.role === 'staff' && user?.deviceId && deviceName ? (
+                <Text style={[styles.rowSub, { color: COLORS.medium, marginTop: 1 }]}>{deviceName}</Text>
+              ) : null}
             </View>
           </View>
-          <View style={[styles.deviceBadge, { backgroundColor: user?.deviceId ? COLORS.successBg : COLORS.warningBg }]}>
-            <Text style={{ fontSize: 11, fontWeight: '700', color: user?.deviceId ? COLORS.success : COLORS.warning }}>
-              {user?.deviceId ? 'ACTIVE' : 'UNBOUND'}
-            </Text>
-          </View>
+          {user?.role === 'staff' ? (
+            <View style={[styles.deviceBadge, { backgroundColor: user?.deviceId ? COLORS.successBg : COLORS.warningBg }]}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: user?.deviceId ? COLORS.success : COLORS.warning }}>
+                {user?.deviceId ? 'ACTIVE' : 'UNBOUND'}
+              </Text>
+            </View>
+          ) : (
+            <View style={[styles.deviceBadge, { backgroundColor: COLORS.surface }]}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.muted }}>N/A</Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -480,13 +507,13 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   editPhotoIcon: { fontSize: 10 },
+  profileNameRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: 4, flexWrap: 'wrap' },
   editProfileBtn: {
-    position: 'absolute', top: SPACING.lg, right: SPACING.xl,
     backgroundColor: COLORS.primaryBg, borderRadius: BORDER_RADIUS.full,
-    paddingHorizontal: SPACING.md, paddingVertical: 5,
-    borderWidth: 1, borderColor: COLORS.primary,
+    paddingHorizontal: SPACING.sm, paddingVertical: 2,
+    borderWidth: 1, borderColor: COLORS.primary, transform: [{ translateY: -2 }],
   },
-  editProfileBtnText: { fontSize: 12, color: COLORS.primary, fontWeight: '700' },
+  editProfileBtnText: { fontSize: 11, color: COLORS.primary, fontWeight: '700' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalSheet: {

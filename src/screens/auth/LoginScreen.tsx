@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
+  KeyboardAvoidingView, Platform, ActivityIndicator, 
 } from 'react-native';
+import { showAlert } from '../../components/AppAlert';
 import { useDispatch, useSelector } from 'react-redux';
 import { loginUser, clearError } from '../../store/slices/authSlice';
 import { AppDispatch, RootState } from '../../store';
@@ -19,7 +20,7 @@ export default function LoginScreen() {
 
   useEffect(() => {
     if (error) {
-      Alert.alert('Login Failed', error, [
+      showAlert('Login Failed', error, [
         { text: 'OK', onPress: () => dispatch(clearError()) },
       ]);
     }
@@ -28,12 +29,12 @@ export default function LoginScreen() {
   const handleLogin = () => {
     if (!phone.trim() || !password.trim()) {
       haptics.error();
-      Alert.alert('Missing Fields', 'Please enter your phone number and password.');
+      showAlert('Missing Fields', 'Please enter your phone number and password.');
       return;
     }
     if (phone.replace(/\D/g, '').length < 10) {
       haptics.error();
-      Alert.alert('Invalid Phone', 'Please enter a valid 10-digit phone number.');
+      showAlert('Invalid Phone', 'Please enter a valid 10-digit phone number.');
       return;
     }
     haptics.medium();

@@ -1,0 +1,629 @@
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  TextInput, Animated, Pressable,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSelector, useDispatch } from 'react-redux';
+import { RootState, AppDispatch } from '../../store';
+import {
+  ensureFreshTally, incrementTally, decrementTally,
+  incrementMilkPackets, decrementMilkPackets,
+  setTallyUpi, setTallyCash, setTallyNotes, resetTally,
+  fetchMenuConfig,
+} from '../../store/slices/menuSlice';
+import { startNewReport, preFillFromTally } from '../../store/slices/reportSlice';
+import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
+import { haptics } from '../../utils/haptics';
+import { showAlert } from '../../components/AppAlert';
+
+const MILK_ML_PER_PACKET = 500;
+const MILK_COST_PER_PACKET = 30;
+
+// ─── Animated counter button ──────────────────────────────────────────────────
+function CounterButton({ onPress, onLongPress, label, style, textStyle }: any) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scale, { toValue: 0.88, useNativeDriver: true, speed: 50 }).start();
+  };
+  const handlePressOut = () => {
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 50 }).start();
+  };
+
+  return (
+    <Pressable
+      onPress={onPress}
+      onLongPress={onLongPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      delayLongPress={400}
+    >
+      <Animated.View style={[style, { transform: [{ scale }] }]}>
+        <Text style={textStyle}>{label}</Text>
+      </Animated.View>
+    </Pressable>
+  );
+}
+
+// ─── Counter card ─────────────────────────────────────────────────────────────
+function CounterCard({ item, count, onIncrement, onDecrement, onLongIncrement, onLongDecrement }: any) {
+  const subtotal = count * item.price;
+
+  const countScale = useRef(new Animated.Value(1)).current;
+
+  const animatePop = () => {
+    Animated.sequence([
+      Animated.spring(countScale, { toValue: 1.3, useNativeDriver: true, speed: 80 }),
+      Animated.spring(countScale, { toValue: 1, useNativeDriver: true, speed: 60 }),
+    ]).start();
+  };
+
+  const handleIncrement = () => {
+    onIncrement();
+    animatePop();
+  };
+
+  return (
+    <View style={counterStyles.card}>
+      <View style={counterStyles.cardHeader}>
+        <View>
+          <Text style={counterStyles.itemName}>{item.name}</Text>
+          <Text style={counterStyles.itemPrice}>₹{item.price} per cup</Text>
+        </View>
+        {count > 0 && (
+          <View style={counterStyles.subtotalBadge}>
+            <Text style={counterStyles.subtotalText}>₹{subtotal}</Text>
+          </View>
+        )}
+      </View>
+
+      <View style={counterStyles.counterRow}>
+        {/* Decrement */}
+        <CounterButton
+          label="−"
+          style={[counterStyles.counterBtn, counterStyles.decrementBtn, count === 0 && counterStyles.counterBtnDisabled]}
+          textStyle={[counterStyles.counterBtnText, count === 0 && { opacity: 0.3 }]}
+          onPress={() => count > 0 && onDecrement()}
+          onLongPress={() => count > 0 && onLongDecrement()}
+        />
+
+        {/* Count display */}
+        <Animated.View style={[counterStyles.countBox, { transform: [{ scale: countScale }] }]}>
+          <Text style={[counterStyles.countText, count > 0 && counterStyles.countTextActive]}>
+            {count}
+          </Text>
+        </Animated.View>
+
+        {/* Increment */}
+        <CounterButton
+          label="+"
+          style={[counterStyles.counterBtn, counterStyles.incrementBtn]}
+          textStyle={counterStyles.counterBtnTextPlus}
+          onPress={handleIncrement}
+          onLongPress={onLongIncrement}
+        />
+      </View>
+
+      {count > 0 && (
+        <View style={counterStyles.progressBar}>
+          <View
+            style={[counterStyles.progressFill, { width: `${Math.min((count / 100) * 100, 100)}%` as any }]}
+          />
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
+export default function TallyScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
+  const dispatch = useDispatch<AppDispatch>();
+  const { user } = useSelector((s: RootState) => s.auth);
+  const { items, tally } = useSelector((s: RootState) => s.menu);
+  const { currentDraft, todayReport } = useSelector((s: RootState) => s.reports);
+
+  const [upiInput, setUpiInput] = useState(tally.upi === 0 ? '' : String(tally.upi));
+  const [cashInput, setCashInput] = useState(tally.cash === 0 ? '' : String(tally.cash));
+
+  useEffect(() => {
+    dispatch(ensureFreshTally());
+    if (user?.stallId) dispatch(fetchMenuConfig(user.stallId));
+  }, []);
+
+  // Sync input fields when tally resets
+  useEffect(() => {
+    setUpiInput(tally.upi === 0 ? '' : String(tally.upi));
+    setCashInput(tally.cash === 0 ? '' : String(tally.cash));
+  }, [tally.date]);
+
+  const activeItems = items.filter(i => i.active).sort((a, b) => a.sortOrder - b.sortOrder);
+
+  const totalCups = activeItems.reduce((sum, item) => sum + (tally.counters[item.key] || 0), 0);
+  const totalRevenue = activeItems.reduce((sum, item) => {
+    return sum + (tally.counters[item.key] || 0) * item.price;
+  }, 0);
+  const totalPayments = tally.upi + tally.cash;
+  const milkCost = tally.milkPackets * MILK_COST_PER_PACKET;
+  const milkLitres = ((tally.milkPackets * MILK_ML_PER_PACKET) / 1000).toFixed(1);
+
+  const dateStr = new Date().toLocaleDateString('en-IN', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  });
+
+  const hasTallyData = totalCups > 0 || tally.upi > 0 || tally.cash > 0 || tally.milkPackets > 0;
+
+  const handleReset = () => {
+    haptics.heavy();
+    showAlert('Reset Tally', "Clear all today's counts and payments?", [
+      {
+        text: 'Reset', style: 'destructive',
+        onPress: () => {
+          dispatch(resetTally());
+          setUpiInput('');
+          setCashInput('');
+          haptics.success();
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const handleStartReport = () => {
+    if (todayReport) {
+      showAlert("Report Already Submitted", "You've already submitted today's report.");
+      return;
+    }
+    haptics.heavy();
+    showAlert(
+      'Start Report',
+      hasTallyData
+        ? 'Pre-fill sales and payments from today\'s tally?'
+        : 'Start today\'s daily report?',
+      [
+        {
+          text: hasTallyData ? 'Use Tally Data' : 'Start',
+          onPress: () => {
+            if (!currentDraft) {
+              dispatch(startNewReport({
+                staffId: user?.id || '',
+                stallId: user?.stallId || '',
+                stallName: user?.stallName || '',
+              }));
+            }
+            if (hasTallyData) dispatch(preFillFromTally(tally));
+            navigation.navigate('DailyReport');
+          },
+        },
+        hasTallyData ? { text: 'Start Fresh', onPress: () => navigation.navigate('DailyReport') } : null,
+        { text: 'Cancel', style: 'cancel' as const },
+      ].filter(Boolean) as any
+    );
+  };
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerOrb} />
+        <View>
+          <Text style={styles.headerTitle}>Today's Tally</Text>
+          <Text style={styles.headerDate}>{dateStr}</Text>
+        </View>
+        {hasTallyData && (
+          <TouchableOpacity style={styles.resetBtn} onPress={handleReset}>
+            <Text style={styles.resetBtnText}>↺ Reset</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Totals strip */}
+      <View style={styles.totalsStrip}>
+        <View style={styles.totalItem}>
+          <Text style={styles.totalValue}>{totalCups}</Text>
+          <Text style={styles.totalLabel}>CUPS</Text>
+        </View>
+        <View style={styles.totalDivider} />
+        <View style={styles.totalItem}>
+          <Text style={[styles.totalValue, { color: COLORS.success }]}>
+            ₹{totalRevenue.toLocaleString('en-IN')}
+          </Text>
+          <Text style={styles.totalLabel}>EST. REVENUE</Text>
+        </View>
+        <View style={styles.totalDivider} />
+        <View style={styles.totalItem}>
+          <Text style={[styles.totalValue, {
+            color: Math.abs(totalPayments - totalRevenue) > 50 && totalPayments > 0
+              ? COLORS.warning : COLORS.dark,
+          }]}>
+            ₹{totalPayments.toLocaleString('en-IN')}
+          </Text>
+          <Text style={styles.totalLabel}>COLLECTED</Text>
+        </View>
+      </View>
+
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Cup counters */}
+        <Text style={styles.sectionLabel}>CUP COUNTERS</Text>
+        <Text style={styles.sectionHint}>Tap + for each cup sold · Long-press +5</Text>
+
+        {activeItems.map((item) => (
+          <CounterCard
+            key={item.key}
+            item={item}
+            count={tally.counters[item.key] || 0}
+            onIncrement={() => {
+              haptics.selection();
+              dispatch(incrementTally({ key: item.key }));
+            }}
+            onDecrement={() => {
+              haptics.light();
+              dispatch(decrementTally({ key: item.key }));
+            }}
+            onLongIncrement={() => {
+              haptics.heavy();
+              dispatch(incrementTally({ key: item.key, by: 5 }));
+            }}
+            onLongDecrement={() => {
+              haptics.medium();
+              dispatch(decrementTally({ key: item.key, by: 5 }));
+            }}
+          />
+        ))}
+
+        {activeItems.length === 0 && (
+          <View style={styles.emptyMenuNote}>
+            <Text style={styles.emptyMenuIcon}>☕</Text>
+            <Text style={styles.emptyMenuText}>No menu items configured.</Text>
+            <Text style={styles.emptyMenuSub}>Ask admin to set up the menu.</Text>
+          </View>
+        )}
+
+        {/* Milk expense counter */}
+        <Text style={[styles.sectionLabel, { marginTop: SPACING.xl }]}>MILK EXPENSE</Text>
+        <Text style={styles.sectionHint}>500ml per packet · ₹30 cost · Long-press ±5</Text>
+
+        <View style={milkStyles.card}>
+          <View style={milkStyles.cardHeader}>
+            <View>
+              <Text style={milkStyles.title}>🥛 Milk Packets</Text>
+              <Text style={milkStyles.subtitle}>500 ml / packet · ₹30 each</Text>
+            </View>
+            {tally.milkPackets > 0 && (
+              <View style={milkStyles.infoBadge}>
+                <Text style={milkStyles.infoBadgeTop}>{milkLitres}L</Text>
+                <Text style={milkStyles.infoBadgeBot}>₹{milkCost} cost</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={counterStyles.counterRow}>
+            <CounterButton
+              label="−"
+              style={[counterStyles.counterBtn, milkStyles.decrementBtn, tally.milkPackets === 0 && counterStyles.counterBtnDisabled]}
+              textStyle={[counterStyles.counterBtnText, tally.milkPackets === 0 && { opacity: 0.3 }]}
+              onPress={() => {
+                if (tally.milkPackets === 0) return;
+                haptics.light();
+                dispatch(decrementMilkPackets());
+              }}
+              onLongPress={() => {
+                if (tally.milkPackets === 0) return;
+                haptics.medium();
+                dispatch(decrementMilkPackets(5));
+              }}
+            />
+            <View style={counterStyles.countBox}>
+              <Text style={[counterStyles.countText, tally.milkPackets > 0 && counterStyles.countTextActive]}>
+                {tally.milkPackets}
+              </Text>
+            </View>
+            <CounterButton
+              label="+"
+              style={[counterStyles.counterBtn, milkStyles.incrementBtn]}
+              textStyle={counterStyles.counterBtnTextPlus}
+              onPress={() => {
+                haptics.selection();
+                dispatch(incrementMilkPackets());
+              }}
+              onLongPress={() => {
+                haptics.heavy();
+                dispatch(incrementMilkPackets(5));
+              }}
+            />
+          </View>
+
+          {tally.milkPackets > 0 && (
+            <View style={milkStyles.progressBar}>
+              <View style={[milkStyles.progressFill, { width: `${Math.min((tally.milkPackets / 20) * 100, 100)}%` as any }]} />
+            </View>
+          )}
+        </View>
+
+        {/* Payment tally */}
+        <Text style={[styles.sectionLabel, { marginTop: SPACING.xl }]}>PAYMENT TALLY</Text>
+        <Text style={styles.sectionHint}>Running total of cash and UPI received</Text>
+
+        <View style={styles.paymentCard}>
+          <View style={styles.paymentRow}>
+            <View style={styles.paymentLabelCol}>
+              <Text style={styles.paymentMode}>📱 UPI</Text>
+              <Text style={styles.paymentSub}>PhonePe · GPay · Paytm</Text>
+            </View>
+            <View style={styles.paymentInputWrap}>
+              <Text style={styles.rupeeSign}>₹</Text>
+              <TextInput
+                style={styles.paymentInput}
+                value={upiInput}
+                onChangeText={(t) => {
+                  setUpiInput(t);
+                  const n = parseFloat(t);
+                  dispatch(setTallyUpi(isNaN(n) ? 0 : n));
+                }}
+                keyboardType="decimal-pad"
+                placeholder="0"
+                placeholderTextColor={COLORS.muted}
+              />
+            </View>
+          </View>
+
+          <View style={styles.paymentDivider} />
+
+          <View style={styles.paymentRow}>
+            <View style={styles.paymentLabelCol}>
+              <Text style={styles.paymentMode}>💵 Cash</Text>
+              <Text style={styles.paymentSub}>Physical currency received</Text>
+            </View>
+            <View style={styles.paymentInputWrap}>
+              <Text style={styles.rupeeSign}>₹</Text>
+              <TextInput
+                style={styles.paymentInput}
+                value={cashInput}
+                onChangeText={(t) => {
+                  setCashInput(t);
+                  const n = parseFloat(t);
+                  dispatch(setTallyCash(isNaN(n) ? 0 : n));
+                }}
+                keyboardType="decimal-pad"
+                placeholder="0"
+                placeholderTextColor={COLORS.muted}
+              />
+            </View>
+          </View>
+
+          {/* Mismatch warning */}
+          {totalPayments > 0 && totalRevenue > 0 && Math.abs(totalPayments - totalRevenue) > 50 && (
+            <View style={styles.mismatchRow}>
+              <Text style={styles.mismatchText}>
+                ⚠️ Collected ₹{totalPayments} vs estimated ₹{totalRevenue} — verify entries
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Notes */}
+        <Text style={[styles.sectionLabel, { marginTop: SPACING.xl }]}>NOTES (OPTIONAL)</Text>
+        <TextInput
+          style={styles.notesInput}
+          value={tally.notes}
+          onChangeText={(t) => dispatch(setTallyNotes(t))}
+          placeholder="Any notes for the report..."
+          placeholderTextColor={COLORS.muted}
+          multiline
+          numberOfLines={3}
+          textAlignVertical="top"
+        />
+
+        <View style={{ height: 120 }} />
+      </ScrollView>
+
+      {/* Sticky CTA */}
+      <View style={[styles.ctaBar, { paddingBottom: insets.bottom + SPACING.md }]}>
+        {(totalRevenue > 0 || milkCost > 0) && (
+          <View style={styles.ctaSummary}>
+            <Text style={styles.ctaSummaryText}>
+              {totalCups > 0 ? `${totalCups} cups · ₹${totalRevenue} est` : ''}
+              {totalCups > 0 && milkCost > 0 ? ' · ' : ''}
+              {milkCost > 0 ? `🥛 ${tally.milkPackets}pkt ₹${milkCost} exp` : ''}
+              {totalPayments > 0 ? ` · ₹${totalPayments} collected` : ''}
+            </Text>
+          </View>
+        )}
+        <TouchableOpacity
+          style={[styles.ctaBtn, todayReport && styles.ctaBtnDone]}
+          onPress={handleStartReport}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.ctaBtnText}>
+            {todayReport ? '✓  Report Submitted' : '📊  Start Daily Report'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: COLORS.surface },
+
+  header: {
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.lg, backgroundColor: COLORS.white,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border, overflow: 'hidden',
+  },
+  headerOrb: {
+    position: 'absolute', width: 200, height: 200, borderRadius: 100,
+    backgroundColor: COLORS.primaryBg, top: -120, right: -60, opacity: 0.5,
+  },
+  headerTitle: { fontSize: FONT_SIZE.xl, fontWeight: '800', color: COLORS.black },
+  headerDate: { fontSize: FONT_SIZE.sm, color: COLORS.muted, marginTop: 2 },
+  resetBtn: {
+    marginLeft: 'auto' as any, borderWidth: 1, borderColor: COLORS.danger,
+    borderRadius: BORDER_RADIUS.full, paddingHorizontal: SPACING.md, paddingVertical: 6,
+  },
+  resetBtnText: { color: COLORS.danger, fontSize: FONT_SIZE.sm, fontWeight: '700' },
+
+  totalsStrip: {
+    flexDirection: 'row', backgroundColor: COLORS.white,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+  },
+  totalItem: { flex: 1, alignItems: 'center', paddingVertical: SPACING.md },
+  totalValue: { fontSize: FONT_SIZE.xl, fontWeight: '800', color: COLORS.primary },
+  totalLabel: { fontSize: 10, color: COLORS.muted, fontWeight: '600', letterSpacing: 0.8, marginTop: 2 },
+  totalDivider: { width: 1, backgroundColor: COLORS.borderLight, marginVertical: SPACING.sm },
+
+  scroll: { flex: 1 },
+  scrollContent: { paddingHorizontal: SPACING.xl, paddingTop: SPACING.xl },
+
+  sectionLabel: {
+    fontSize: 11, fontWeight: '700', color: COLORS.muted, letterSpacing: 1.5, marginBottom: 4,
+  },
+  sectionHint: { fontSize: FONT_SIZE.sm, color: COLORS.muted, marginBottom: SPACING.md },
+
+  emptyMenuNote: {
+    alignItems: 'center', paddingVertical: SPACING.xxxl,
+    backgroundColor: COLORS.white, borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  emptyMenuIcon: { fontSize: 36, marginBottom: SPACING.md },
+  emptyMenuText: { fontSize: FONT_SIZE.md, fontWeight: '700', color: COLORS.dark },
+  emptyMenuSub: { fontSize: FONT_SIZE.sm, color: COLORS.muted, marginTop: 4 },
+
+  paymentCard: {
+    backgroundColor: COLORS.white, borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1, borderColor: COLORS.border, ...SHADOWS.sm, overflow: 'hidden',
+  },
+  paymentRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: SPACING.lg, paddingVertical: SPACING.lg,
+  },
+  paymentLabelCol: { flex: 1 },
+  paymentMode: { fontSize: FONT_SIZE.md, fontWeight: '700', color: COLORS.black },
+  paymentSub: { fontSize: FONT_SIZE.sm, color: COLORS.muted, marginTop: 2 },
+  paymentInputWrap: {
+    flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: BORDER_RADIUS.sm, backgroundColor: COLORS.surface,
+    paddingHorizontal: SPACING.md, minWidth: 110, minHeight: 48,
+  },
+  rupeeSign: { fontSize: FONT_SIZE.md, color: COLORS.primaryLight, fontWeight: '700', marginRight: 4 },
+  paymentInput: { flex: 1, fontSize: FONT_SIZE.lg, color: COLORS.black, fontWeight: '700' },
+  paymentDivider: { height: 1, backgroundColor: COLORS.borderLight, marginHorizontal: SPACING.lg },
+  mismatchRow: {
+    backgroundColor: COLORS.warningBg, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md,
+    borderTopWidth: 1, borderTopColor: COLORS.warning,
+  },
+  mismatchText: { fontSize: FONT_SIZE.sm, color: COLORS.warning, fontWeight: '600' },
+
+  notesInput: {
+    backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: BORDER_RADIUS.md, padding: SPACING.md,
+    fontSize: FONT_SIZE.md, color: COLORS.black, minHeight: 80, lineHeight: 22,
+  },
+
+  ctaBar: {
+    backgroundColor: COLORS.white, borderTopWidth: 1, borderTopColor: COLORS.border,
+    paddingHorizontal: SPACING.xl, paddingTop: SPACING.md,
+  },
+  ctaSummary: {
+    backgroundColor: COLORS.primaryBg, borderRadius: BORDER_RADIUS.md,
+    paddingVertical: SPACING.sm, alignItems: 'center', marginBottom: SPACING.sm,
+  },
+  ctaSummaryText: { fontSize: FONT_SIZE.sm, color: COLORS.primaryLight, fontWeight: '600' },
+  ctaBtn: {
+    backgroundColor: COLORS.primary, borderRadius: BORDER_RADIUS.md,
+    paddingVertical: SPACING.lg, alignItems: 'center',
+    borderWidth: 1, borderColor: COLORS.primaryLight,
+    shadowColor: COLORS.primaryDark, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18, shadowRadius: 6, elevation: 3,
+    minHeight: 56,
+  },
+  ctaBtnDone: { backgroundColor: COLORS.success, borderColor: COLORS.success },
+  ctaBtnText: { color: '#fff', fontSize: FONT_SIZE.lg, fontWeight: '800' },
+});
+
+const counterStyles = StyleSheet.create({
+  card: {
+    backgroundColor: COLORS.white, borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.xl, marginBottom: SPACING.md,
+    borderWidth: 1, borderColor: COLORS.border, ...SHADOWS.sm,
+  },
+  cardHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
+    marginBottom: SPACING.lg,
+  },
+  itemName: { fontSize: FONT_SIZE.lg, fontWeight: '800', color: COLORS.black },
+  itemPrice: { fontSize: FONT_SIZE.sm, color: COLORS.muted, marginTop: 2 },
+  subtotalBadge: {
+    backgroundColor: COLORS.primaryBg, borderRadius: BORDER_RADIUS.full,
+    paddingHorizontal: SPACING.md, paddingVertical: 6,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  subtotalText: { fontSize: FONT_SIZE.md, fontWeight: '800', color: COLORS.primary },
+
+  counterRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
+
+  counterBtn: {
+    width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center',
+  },
+  decrementBtn: {
+    backgroundColor: COLORS.surface, borderWidth: 2, borderColor: COLORS.border,
+  },
+  incrementBtn: {
+    backgroundColor: COLORS.primary,
+    shadowColor: COLORS.primaryDark, shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25, shadowRadius: 6, elevation: 4,
+  },
+  counterBtnDisabled: { borderColor: COLORS.borderLight },
+  counterBtnText: { fontSize: 28, fontWeight: '700', color: COLORS.dark },
+  counterBtnTextPlus: { fontSize: 32, fontWeight: '700', color: '#fff' },
+
+  countBox: { flex: 1, alignItems: 'center' },
+  countText: { fontSize: 52, fontWeight: '900', color: COLORS.borderLight, letterSpacing: -2 },
+  countTextActive: { color: COLORS.black },
+
+  progressBar: {
+    height: 4, backgroundColor: COLORS.borderLight, borderRadius: 2, marginTop: SPACING.md, overflow: 'hidden',
+  },
+  progressFill: { height: '100%', backgroundColor: COLORS.primary, borderRadius: 2 },
+});
+
+const milkStyles = StyleSheet.create({
+  card: {
+    backgroundColor: '#FFFBF0', borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.xl, marginBottom: SPACING.md,
+    borderWidth: 1.5, borderColor: '#F5C842', ...SHADOWS.sm,
+  },
+  cardHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
+    marginBottom: SPACING.lg,
+  },
+  title: { fontSize: FONT_SIZE.lg, fontWeight: '800', color: '#7A5C00' },
+  subtitle: { fontSize: FONT_SIZE.sm, color: '#B8860B', marginTop: 2 },
+  infoBadge: {
+    backgroundColor: '#FFF3CC', borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
+    borderWidth: 1, borderColor: '#F5C842', alignItems: 'center',
+  },
+  infoBadgeTop: { fontSize: FONT_SIZE.md, fontWeight: '900', color: '#7A5C00' },
+  infoBadgeBot: { fontSize: 10, color: '#B8860B', fontWeight: '600', marginTop: 1 },
+  decrementBtn: {
+    backgroundColor: '#FFF3CC', borderWidth: 2, borderColor: '#F5C842',
+  },
+  incrementBtn: {
+    backgroundColor: '#D4A017',
+    shadowColor: '#7A5C00', shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25, shadowRadius: 6, elevation: 4,
+  },
+  progressBar: {
+    height: 4, backgroundColor: '#F5E19A', borderRadius: 2, marginTop: SPACING.md, overflow: 'hidden',
+  },
+  progressFill: { height: '100%', backgroundColor: '#D4A017', borderRadius: 2 },
+});

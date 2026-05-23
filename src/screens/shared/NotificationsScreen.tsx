@@ -62,7 +62,7 @@ export default function NotificationsScreen() {
   const handleMarkRead = async (notif: Notification) => {
     if (notif.read) return;
     haptics.selection();
-    await notificationService.markAsRead(notif.id);
+    await notificationService.markAsRead(notif.id ?? (notif as any)._id);
     setNotifications((prev) => prev.map((n) => n.id === notif.id ? { ...n, read: true } : n));
     setUnreadCount((c) => Math.max(0, c - 1));
   };
@@ -112,7 +112,7 @@ export default function NotificationsScreen() {
 
       <FlatList
         data={filtered}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.id ?? (item as any)._id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
         contentContainerStyle={styles.list}
         ListEmptyComponent={

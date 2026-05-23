@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
-  Alert, Modal, ActivityIndicator, RefreshControl,
+   Modal, ActivityIndicator, RefreshControl,
 } from 'react-native';
+import { showAlert } from '../../components/AppAlert';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { inventoryService } from '../../services/inventoryService';
@@ -43,7 +44,7 @@ export default function InventoryManagementScreen() {
       const data = await inventoryService.getItems(stallId);
       setItems(data);
     } catch {
-      Alert.alert('Error', 'Could not load inventory. Is the server running?');
+      showAlert('Error', 'Could not load inventory. Is the server running?');
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -73,7 +74,7 @@ export default function InventoryManagementScreen() {
   const handleSupply = async () => {
     if (!supplyItem || !supplyQty || isNaN(parseFloat(supplyQty))) {
       haptics.error();
-      Alert.alert('Invalid', 'Enter a valid quantity.');
+      showAlert('Invalid', 'Enter a valid quantity.');
       return;
     }
     haptics.medium();
@@ -85,10 +86,10 @@ export default function InventoryManagementScreen() {
       setSupplyQty('');
       setSupplyNote('');
       haptics.success();
-      Alert.alert('Done', `${supplyItem.name} restocked by ${supplyQty} ${supplyItem.unit}.`);
+      showAlert('Done', `${supplyItem.name} restocked by ${supplyQty} ${supplyItem.unit}.`);
     } catch (err: any) {
       haptics.error();
-      Alert.alert('Error', err.response?.data?.error || 'Could not record supply');
+      showAlert('Error', err.response?.data?.error || 'Could not record supply');
     } finally {
       setSupplyLoading(false);
     }
@@ -97,7 +98,7 @@ export default function InventoryManagementScreen() {
   const handleAddItem = async () => {
     if (!newName.trim() || !newUnit.trim() || !newThreshold) {
       haptics.error();
-      Alert.alert('Missing Fields', 'Name, unit, and minimum threshold are required.');
+      showAlert('Missing Fields', 'Name, unit, and minimum threshold are required.');
       return;
     }
     haptics.medium();
@@ -116,7 +117,7 @@ export default function InventoryManagementScreen() {
       haptics.success();
     } catch (err: any) {
       haptics.error();
-      Alert.alert('Error', err.response?.data?.error || 'Could not add item');
+      showAlert('Error', err.response?.data?.error || 'Could not add item');
     } finally {
       setAddLoading(false);
     }

@@ -6,7 +6,7 @@ import { User } from '../types';
 
 const api = axios.create({
   baseURL: API_CONFIG.BASE_URL,
-  timeout: API_CONFIG.TIMEOUT,
+  timeout: __DEV__ ? API_CONFIG.TIMEOUT : 60000, // 60s in prod to survive Render cold starts
 });
 
 // Attach token to every request
@@ -22,8 +22,8 @@ export const authService = {
     return response.data;
   },
 
-  async bindDevice(userId: string, deviceId: string, token: string): Promise<void> {
-    await api.post('/auth/bind-device', { userId, deviceId }, {
+  async bindDevice(userId: string, deviceId: string, token: string, deviceName?: string): Promise<void> {
+    await api.post('/auth/bind-device', { userId, deviceId, deviceName }, {
       headers: { Authorization: `Bearer ${token}` },
     });
   },

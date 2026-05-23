@@ -1,13 +1,15 @@
 import React from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, Platform,
+  TextInput,  ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { showAlert } from '../../components/AppAlert';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
 import {
   updateDraftSection, setStep, submitDailyReport,
 } from '../../store/slices/reportSlice';
+
 import { deviceService } from '../../services/deviceService';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS, REPORT_STEPS, PHOTO_CATEGORIES } from '../../constants';
 import { DailyReport } from '../../types';
@@ -28,7 +30,7 @@ export default function DailyReportScreen({ navigation }: any) {
     haptics.selection();
     if (currentStep > 0) dispatch(setStep(currentStep - 1));
     else {
-      Alert.alert('Exit Report', 'Your progress is saved as draft. Exit?', [
+      showAlert('Exit Report', 'Your progress is saved as draft. Exit?', [
         { text: 'Stay', style: 'cancel' },
         { text: 'Exit', onPress: () => { navigation.goBack(); } },
       ]);
@@ -39,7 +41,7 @@ export default function DailyReportScreen({ navigation }: any) {
     const photos = currentDraft?.photos as any;
     const missingPhotos = PHOTO_CATEGORIES.filter((c) => !photos?.[c.key]);
     if (missingPhotos.length > 0) {
-      Alert.alert('Missing Photos', `Please capture: ${missingPhotos.map(p => p.label).join(', ')}`);
+      showAlert('Missing Photos', `Please capture: ${missingPhotos.map(p => p.label).join(', ')}`);
       return;
     }
 
@@ -47,7 +49,7 @@ export default function DailyReportScreen({ navigation }: any) {
     try {
       location = await deviceService.getCurrentLocation();
     } catch {
-      Alert.alert('Location Error', 'Could not get GPS location. Report will be flagged.');
+      showAlert('Location Error', 'Could not get GPS location. Report will be flagged.');
     }
 
     const report: DailyReport = {
@@ -58,7 +60,7 @@ export default function DailyReportScreen({ navigation }: any) {
     };
 
     haptics.heavy();
-    Alert.alert(
+    showAlert(
       'Submit Report',
       'Once submitted, you cannot edit this report. Continue?',
       [
@@ -78,6 +80,9 @@ export default function DailyReportScreen({ navigation }: any) {
   if (!currentDraft) return null;
 
   const progress = ((currentStep + 1) / REPORT_STEPS.length) * 100;
+  const capturedPhotos = (currentDraft.photos as any) || {};
+  const allPhotosCaptured = PHOTO_CATEGORIES.every((c) => !!capturedPhotos[c.key]);
+  const isNextDisabled = currentStep === 5 && !allPhotosCaptured;
 
   return (
     <KeyboardAvoidingView
@@ -131,9 +136,18 @@ export default function DailyReportScreen({ navigation }: any) {
       {/* Footer */}
       <View style={styles.footer}>
         {currentStep < REPORT_STEPS.length - 1 ? (
-          <TouchableOpacity style={styles.nextBtn} onPress={handleNext}>
-            <Text style={styles.nextBtnText}>Continue →</Text>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity
+              style={[styles.nextBtn, isNextDisabled && styles.nextBtnDisabled]}
+              onPress={handleNext}
+              disabled={isNextDisabled}
+            >
+              <Text style={styles.nextBtnText}>Continue →</Text>
+            </TouchableOpacity>
+            {isNextDisabled && (
+              <Text style={styles.photoLockHint}>Capture all 4 photos to continue</Text>
+            )}
+          </>
         ) : (
           <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} disabled={isSubmitting}>
             {isSubmitting ? (
@@ -151,6 +165,22 @@ export default function DailyReportScreen({ navigation }: any) {
 // ─── Step Components ──────────────────────────────────────────────────────────
 
 function NumberField({ label, value, onChange, unit, hint }: any) {
+  const [raw, setRaw] = React.useState<string>(value === 0 ? '' : String(value));
+
+  React.useEffect(() => {
+    const parsed = parseFloat(raw);
+    if (isNaN(parsed) || parsed !== value) {
+      setRaw(value === 0 ? '' : String(value));
+    }
+  }, [value]);
+
+  const handleChange = (t: string) => {
+    setRaw(t);
+    const num = parseFloat(t);
+    if (!isNaN(num)) onChange(num);
+    else if (t === '' || t === '.') onChange(0);
+  };
+
   return (
     <View style={stepStyles.field}>
       <Text style={stepStyles.fieldLabel}>{label}</Text>
@@ -159,8 +189,8 @@ function NumberField({ label, value, onChange, unit, hint }: any) {
         <TextInput
           style={stepStyles.input}
           keyboardType="decimal-pad"
-          value={value === 0 ? '' : String(value)}
-          onChangeText={(t) => onChange(parseFloat(t) || 0)}
+          value={raw}
+          onChangeText={handleChange}
           placeholder="0"
           placeholderTextColor={COLORS.muted}
         />
@@ -189,6 +219,7 @@ function OpeningStockStep({ draft, dispatch }: any) {
       <NumberField label="Sugar" value={s.sugar} onChange={(v: number) => update('sugar', v)} unit="kg" />
       <NumberField label="Tea leaves" value={s.teaLeaves} onChange={(v: number) => update('teaLeaves', v)} unit="grams" />
       <NumberField label="Paper cups" value={s.cups} onChange={(v: number) => update('cups', v)} unit="count" />
+      <NumberField label="Kulhad cups" value={s.kulhadCups} onChange={(v: number) => update('kulhadCups', v)} unit="count" />
     </StepCard>
   );
 }
@@ -207,19 +238,48 @@ function PurchasesStep({ draft, dispatch }: any) {
 
 function SalesStep({ draft, dispatch }: any) {
   const s = draft.sales || {};
+  const menuItems = useSelector((state: RootState) => state.menu.items);
+  const activeItems = menuItems.filter(i => i.active).sort((a, b) => a.sortOrder - b.sortOrder);
+
   const update = (key: string, val: number) =>
     dispatch(updateDraftSection({ section: 'sales', data: { ...s, [key]: val } }));
+
+  // Map menu item keys to sales field names
+  const FIELD_MAP: Record<string, string> = {
+    regularChai: 'regularCups',
+    specialChai: 'specialCups',
+    kulhadChai: 'kulhadCups',
+  };
+
+  const estimatedRevenue = activeItems.reduce((sum, item) => {
+    const field = FIELD_MAP[item.key];
+    const count = field ? (s[field] || 0) : 0;
+    return sum + count * item.price;
+  }, 0);
+
+  const priceLine = activeItems
+    .map(i => `₹${i.price} ${i.name.toLowerCase()}`)
+    .join(' · ');
+
   return (
     <StepCard title="☕ Sales Entry">
-      <NumberField label="Regular chai cups" value={s.regularCups} onChange={(v: number) => update('regularCups', v)} unit="cups" />
-      <NumberField label="Special chai cups" value={s.specialCups} onChange={(v: number) => update('specialCups', v)} unit="cups" hint="Masala, ginger, etc." />
+      {activeItems.map((item) => {
+        const field = FIELD_MAP[item.key] || item.key;
+        return (
+          <NumberField
+            key={item.key}
+            label={`${item.name}`}
+            value={s[field] || 0}
+            onChange={(v: number) => update(field, v)}
+            unit="cups"
+          />
+        );
+      })}
       <NumberField label="Snacks sold" value={s.snacks} onChange={(v: number) => update('snacks', v)} unit="₹" hint="Total snack sales in ₹" />
       <View style={stepStyles.estimate}>
         <Text style={stepStyles.estimateLabel}>Estimated revenue from cups</Text>
-        <Text style={stepStyles.estimateValue}>
-          ₹{Math.round(((s.regularCups || 0) * 15) + ((s.specialCups || 0) * 25))}
-        </Text>
-        <Text style={stepStyles.estimateSub}>At ₹15 regular / ₹25 special</Text>
+        <Text style={stepStyles.estimateValue}>₹{Math.round(estimatedRevenue)}</Text>
+        <Text style={stepStyles.estimateSub}>{priceLine}</Text>
       </View>
     </StepCard>
   );
@@ -269,7 +329,8 @@ function ClosingStockStep({ draft, dispatch }: any) {
       <NumberField label="Milk remaining" value={s.milk} onChange={(v: number) => update('milk', v)} unit="litres" />
       <NumberField label="Sugar remaining" value={s.sugar} onChange={(v: number) => update('sugar', v)} unit="kg" />
       <NumberField label="Tea leaves remaining" value={s.teaLeaves} onChange={(v: number) => update('teaLeaves', v)} unit="grams" />
-      <NumberField label="Cups remaining" value={s.cups} onChange={(v: number) => update('cups', v)} unit="count" />
+      <NumberField label="Paper cups remaining" value={s.cups} onChange={(v: number) => update('cups', v)} unit="count" />
+      <NumberField label="Kulhad cups remaining" value={s.kulhadCups} onChange={(v: number) => update('kulhadCups', v)} unit="count" />
     </StepCard>
   );
 }
@@ -304,7 +365,7 @@ function PhotosStep({ draft, navigation }: any) {
 }
 
 function ReviewStep({ draft }: any) {
-  const cups = (draft.sales?.regularCups || 0) + (draft.sales?.specialCups || 0);
+  const cups = (draft.sales?.regularCups || 0) + (draft.sales?.specialCups || 0) + (draft.sales?.kulhadCups || 0);
   const revenue = (draft.payments?.upi || 0) + (draft.payments?.cash || 0);
   const flags = draft.flags || [];
 
@@ -396,6 +457,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15, shadowRadius: 6, elevation: 3,
   },
   nextBtnText: { color: '#fff', fontSize: FONT_SIZE.lg, fontWeight: '700' },
+  nextBtnDisabled: { opacity: 0.4, backgroundColor: COLORS.medium },
+  photoLockHint: { textAlign: 'center', marginTop: SPACING.sm, fontSize: FONT_SIZE.sm, color: COLORS.danger, fontWeight: '600' },
 });
 
 const stepStyles = StyleSheet.create({

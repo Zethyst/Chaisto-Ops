@@ -5,10 +5,11 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LineChart, BarChart } from 'react-native-chart-kit';
-import { useSelector } from 'react-redux';
-import { RootState } from '../../store';
+import { useSelector, useDispatch } from 'react-redux';
+import { RootState, AppDispatch } from '../../store';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
 import { reportService } from '../../services/reportService';
+import { fetchMenuConfig } from '../../store/slices/menuSlice';
 import { haptics } from '../../utils/haptics';
 import { useLanguage } from '../../i18n';
 import BrandedLogoMark from '../../components/BrandedLogoMark';
@@ -48,6 +49,7 @@ export default function AdminDashboard({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const { user } = useSelector((s: RootState) => s.auth);
   const { t } = useLanguage();
+  const dispatch = useDispatch<AppDispatch>();
   const [analytics, setAnalytics] = useState<any>(null);
   const [flaggedReports, setFlaggedReports] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -71,6 +73,7 @@ export default function AdminDashboard({ navigation }: any) {
   }, [period]);
 
   useEffect(() => { setIsLoading(true); loadData(); }, [period]);
+  useEffect(() => { if (user?.stallId) dispatch(fetchMenuConfig(user.stallId)); }, []);
 
   const onRefresh = () => { setRefreshing(true); loadData(); };
 
@@ -364,7 +367,7 @@ const styles = StyleSheet.create({
   },
   headerTextCol: { flex: 1, marginLeft: SPACING.md, minWidth: 0 },
   greeting: { fontSize: FONT_SIZE.sm, color: COLORS.muted },
-  headerName: { fontSize: FONT_SIZE.xl, fontWeight: '800', color: COLORS.black },
+  headerName: { fontSize: 28, color: COLORS.black, fontFamily: 'GreatVibes-Regular' },
   notifBtn: { position: 'relative', padding: SPACING.sm },
   notifIcon: { fontSize: 24 },
   notifBadge: {

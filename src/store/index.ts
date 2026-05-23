@@ -5,17 +5,19 @@ import { combineReducers } from '@reduxjs/toolkit';
 
 import authReducer from './slices/authSlice';
 import reportReducer from './slices/reportSlice';
+import menuReducer from './slices/menuSlice';
 
 const persistConfig = {
   key: 'chaisto-root',
   storage: AsyncStorage,
-  whitelist: ['auth', 'reports'], // persist auth + drafts
+  whitelist: ['auth', 'reports', 'menu'],
   blacklist: [],
 };
 
 const rootReducer = combineReducers({
   auth: authReducer,
   reports: reportReducer,
+  menu: menuReducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

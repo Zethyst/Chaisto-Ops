@@ -1,14 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  Alert, RefreshControl, ActivityIndicator,
+   RefreshControl, ActivityIndicator, Platform,
 } from 'react-native';
+import { showAlert } from '../../components/AppAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
 import { fetchTodayReport, startNewReport } from '../../store/slices/reportSlice';
+import { fetchMenuConfig, ensureFreshTally } from '../../store/slices/menuSlice';
 import { reportService } from '../../services/reportService';
 import { payrollService } from '../../services/payrollService';
+import { notificationService } from '../../services/notificationService';
 import { DailyReport, PayrollSummary } from '../../types';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
 import { haptics } from '../../utils/haptics';
@@ -46,6 +49,7 @@ export default function StaffDashboard({ navigation }: any) {
   const [fromCache, setFromCache] = useState(false);
   const [payroll, setPayroll] = useState<PayrollSummary | null>(null);
   const [payrollLoading, setPayrollLoading] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const loadRecentReports = async () => {
     if (!user?.id) return;
@@ -67,11 +71,21 @@ export default function StaffDashboard({ navigation }: any) {
     }
   };
 
+  const loadUnreadCount = async () => {
+    try {
+      const { unreadCount: count } = await notificationService.getNotifications();
+      setUnreadCount(count);
+    } catch {}
+  };
+
   useEffect(() => {
     if (user?.id) {
       dispatch(fetchTodayReport(user.id));
+      dispatch(ensureFreshTally());
+      if (user.stallId) dispatch(fetchMenuConfig(user.stallId));
       loadRecentReports();
       loadPayroll();
+      loadUnreadCount();
     }
   }, []);
 
@@ -82,6 +96,7 @@ export default function StaffDashboard({ navigation }: any) {
         dispatch(fetchTodayReport(user.id)),
         loadRecentReports(),
         loadPayroll(),
+        loadUnreadCount(),
       ]);
     }
     setRefreshing(false);
@@ -91,7 +106,7 @@ export default function StaffDashboard({ navigation }: any) {
   const startReport = () => {
     if (todayReport?.status === 'submitted' || todayReport?.status === 'reviewed') {
       haptics.error();
-      Alert.alert('Already Submitted', "You have already submitted today's report. Contact your admin if there's an issue.");
+      showAlert('Already Submitted', "You have already submitted today's report. Contact your admin if there's an issue.");
       return;
     }
     haptics.medium();
@@ -104,14 +119,14 @@ export default function StaffDashboard({ navigation }: any) {
   };
 
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? t('goodMorning') : hour < 17 ? t('goodAfternoon') : t('goodEvening');
+  const greeting = hour < 5 ? t('goodNight') : hour < 12 ? t('goodMorning') : hour < 17 ? t('goodAfternoon') : hour < 21 ? t('goodEvening') : t('goodNight');
   const reportSubmitted = todayReport?.status === 'submitted' || todayReport?.status === 'reviewed';
   const recentDays = lastNDays(5);
 
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top }]}
+      contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primaryLight} />}
     >
       {/* Offline banner */}
@@ -127,19 +142,23 @@ export default function StaffDashboard({ navigation }: any) {
       )}
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + SPACING.xl }]}>
         <View style={styles.headerOrb} />
         <BrandedLogoMark size={52} />
         <View style={styles.headerTextCol}>
           <Text style={styles.greeting}>{greeting},</Text>
           <Text style={styles.name}>{user?.name || 'Staff'}</Text>
-          <Text style={styles.stall}>📍 {user?.stallName || 'Chaisto Civil Lines'}</Text>
         </View>
         <TouchableOpacity
           style={styles.notifBtn}
           onPress={() => { haptics.light(); navigation.navigate('Notifications'); }}
         >
           <Text style={{ fontSize: 24 }}>🔔</Text>
+          {unreadCount > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : String(unreadCount)}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -315,7 +334,8 @@ const styles = StyleSheet.create({
 
   header: {
     flexDirection: 'row', alignItems: 'center',
-    padding: SPACING.xl, backgroundColor: COLORS.white,
+    paddingHorizontal: SPACING.xl, paddingBottom: SPACING.xl,
+    backgroundColor: COLORS.white,
     borderBottomWidth: 1, borderBottomColor: COLORS.border,
     overflow: 'hidden',
   },
@@ -325,9 +345,22 @@ const styles = StyleSheet.create({
   },
   headerTextCol: { flex: 1, marginLeft: SPACING.md, minWidth: 0 },
   greeting: { fontSize: FONT_SIZE.sm, color: COLORS.muted },
-  name: { fontSize: FONT_SIZE.lg, fontWeight: '800', color: COLORS.black },
+  name: {
+    fontSize: 28,
+    color: COLORS.black,
+    fontFamily: 'GreatVibes-Regular',
+  },
   stall: { fontSize: FONT_SIZE.sm, color: COLORS.medium, marginTop: 2 },
-  notifBtn: { padding: SPACING.sm },
+  notifBtn: { padding: SPACING.sm, position: 'relative' },
+  badge: {
+    position: 'absolute', top: 2, right: 2,
+    backgroundColor: COLORS.danger, borderRadius: 10,
+    minWidth: 18, height: 18,
+    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5, borderColor: COLORS.white,
+  },
+  badgeText: { color: '#fff', fontSize: 10, fontWeight: '800', lineHeight: 14 },
 
   // Income card
   incomeCard: {

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, ActivityIndicator, RefreshControl, Modal,
+   ActivityIndicator, RefreshControl, Modal,
 } from 'react-native';
+import { showAlert } from '../../components/AppAlert';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { attendanceService } from '../../services/attendanceService';
@@ -59,7 +60,7 @@ export default function AttendanceScreen() {
         setRecords(recs);
       }
     } catch {
-      Alert.alert('Error', 'Could not load attendance');
+      showAlert('Error', 'Could not load attendance');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -93,7 +94,7 @@ export default function AttendanceScreen() {
       load();
     } catch (err: any) {
       haptics.error();
-      Alert.alert('Error', err.response?.data?.error || 'Could not mark attendance');
+      showAlert('Error', err.response?.data?.error || 'Could not mark attendance');
     } finally {
       setSaving(false);
     }

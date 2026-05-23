@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert, Modal, ActivityIndicator, Switch, RefreshControl,
+  TextInput,  Modal, ActivityIndicator, Switch, RefreshControl, Image,
 } from 'react-native';
+import { showAlert } from '../../components/AppAlert';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { authService } from '../../services/authService';
@@ -41,7 +42,7 @@ export default function StaffManagementScreen() {
       setStaffList(users);
       setStalls(stallList);
     } catch {
-      Alert.alert('Error', 'Could not load staff data. Is the server running?');
+      showAlert('Error', 'Could not load staff data. Is the server running?');
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -62,9 +63,9 @@ export default function StaffManagementScreen() {
   };
 
   const createUser = async () => {
-    if (!newName.trim()) return Alert.alert('Missing Field', 'Please enter a name.');
-    if (!/^\d{10}$/.test(newPhone)) return Alert.alert('Invalid Phone', 'Enter a valid 10-digit number.');
-    if (newPassword.length < 8) return Alert.alert('Weak Password', 'Password must be at least 8 characters.');
+    if (!newName.trim()) return showAlert('Missing Field', 'Please enter a name.');
+    if (!/^\d{10}$/.test(newPhone)) return showAlert('Invalid Phone', 'Enter a valid 10-digit number.');
+    if (newPassword.length < 8) return showAlert('Weak Password', 'Password must be at least 8 characters.');
 
     setCreating(true);
     try {
@@ -78,13 +79,13 @@ export default function StaffManagementScreen() {
       setStaffList((prev) => [created, ...prev]);
       setShowAddModal(false);
       resetForm();
-      Alert.alert(
+      showAlert(
         'Account Created',
         `${created.name}'s account is ready.\n\nPhone: ${created.phone}\nRole: ${created.role.toUpperCase()}\n\nShare credentials securely.`
       );
     } catch (err: any) {
       const msg = err.response?.data?.error || err.message || 'Failed to create account';
-      Alert.alert('Error', msg);
+      showAlert('Error', msg);
     } finally {
       setCreating(false);
     }
@@ -92,7 +93,7 @@ export default function StaffManagementScreen() {
 
   const toggleStatus = (staff: User) => {
     if (!isAdmin) return;
-    Alert.alert(
+    showAlert(
       `${staff.isActive ? 'Disable' : 'Enable'} Account`,
       `${staff.isActive ? 'Block' : 'Restore'} login access for ${staff.name}?`,
       [
@@ -107,7 +108,7 @@ export default function StaffManagementScreen() {
                 prev.map((s) => s.id === staff.id ? { ...s, isActive: !s.isActive } : s)
               );
             } catch {
-              Alert.alert('Error', 'Could not update account status');
+              showAlert('Error', 'Could not update account status');
             }
           },
         },
@@ -116,7 +117,7 @@ export default function StaffManagementScreen() {
   };
 
   const resetDevice = (staff: User) => {
-    Alert.alert(
+    showAlert(
       'Reset Device Binding',
       `${staff.name} will be able to log in from any device. Do this only if they changed phones.`,
       [
@@ -129,9 +130,9 @@ export default function StaffManagementScreen() {
               setStaffList((prev) =>
                 prev.map((s) => s.id === staff.id ? { ...s, deviceId: undefined } : s)
               );
-              Alert.alert('Done', 'Device binding cleared.');
+              showAlert('Done', 'Device binding cleared.');
             } catch {
-              Alert.alert('Error', 'Could not reset device binding');
+              showAlert('Error', 'Could not reset device binding');
             }
           },
         },
@@ -194,9 +195,9 @@ export default function StaffManagementScreen() {
             <View key={staff.id} style={[styles.staffCard, !staff.isActive && styles.staffCardDisabled]}>
               <View style={styles.staffHeader}>
                 <View style={[styles.avatar, { backgroundColor: roleBg(staff.role) }]}>
-                  <Text style={[styles.avatarText, { color: roleColor(staff.role) }]}>
-                    {staff.name.charAt(0).toUpperCase()}
-                  </Text>
+                  {staff.profilePhoto
+                    ? <Image source={{ uri: staff.profilePhoto }} style={styles.avatarImage} />
+                    : <Text style={[styles.avatarText, { color: roleColor(staff.role) }]}>{staff.name.charAt(0).toUpperCase()}</Text>}
                 </View>
                 <View style={{ flex: 1, marginLeft: SPACING.md }}>
                   <View style={styles.nameRow}>
@@ -212,7 +213,9 @@ export default function StaffManagementScreen() {
                     <Text style={styles.staffStall}>📍 {staff.stallName}</Text>
                   )}
                   <Text style={styles.staffMeta}>
-                    {staff.deviceId ? '🔒 Device bound' : '⚠️ No device'}
+                    {staff.deviceId
+                      ? `🔒 ${staff.deviceName || 'Device bound'}`
+                      : '⚠️ No device'}
                     {staff.lastLogin
                       ? ` · Last login ${new Date(staff.lastLogin).toLocaleDateString('en-IN')}`
                       : ' · Never logged in'}
@@ -383,7 +386,7 @@ function StatPill({ label, value, color }: { label: string; value: number; color
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.surface },
 
-  searchBar: { flexDirection: 'row', padding: SPACING.lg, gap: SPACING.sm, backgroundColor: COLORS.white, borderBottomWidth: 0.5, borderBottomColor: COLORS.borderLight },
+  searchBar: { flexDirection: 'row', padding: SPACING.lg, gap: SPACING.sm, borderBottomWidth: 0.5, borderBottomColor: COLORS.borderLight, marginTop: 16 },
   searchInput: { flex: 1, borderWidth: 1, borderColor: COLORS.border, borderRadius: BORDER_RADIUS.sm, paddingHorizontal: SPACING.md, fontSize: FONT_SIZE.md, color: COLORS.black, backgroundColor: COLORS.surface, height: 44 },
   addBtn: { backgroundColor: COLORS.primary, borderRadius: BORDER_RADIUS.sm, paddingHorizontal: SPACING.lg, justifyContent: 'center' },
   addBtnText: { color: '#fff', fontWeight: '700', fontSize: FONT_SIZE.sm },
@@ -403,7 +406,8 @@ const styles = StyleSheet.create({
   staffCard: { backgroundColor: COLORS.white, borderRadius: BORDER_RADIUS.lg, padding: SPACING.lg, ...SHADOWS.sm },
   staffCardDisabled: { opacity: 0.55 },
   staffHeader: { flexDirection: 'row' },
-  avatar: { width: 48, height: 48, borderRadius: BORDER_RADIUS.full, alignItems: 'center', justifyContent: 'center' },
+  avatar: { width: 48, height: 48, borderRadius: BORDER_RADIUS.full, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  avatarImage: { width: 48, height: 48, borderRadius: BORDER_RADIUS.full },
   avatarText: { fontSize: FONT_SIZE.xl, fontWeight: '800' },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: 4, flexWrap: 'wrap' },
   staffName: { fontSize: FONT_SIZE.lg, fontWeight: '700', color: COLORS.black },

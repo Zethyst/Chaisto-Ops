@@ -8,7 +8,8 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ['admin', 'moderator', 'staff'], required: true },
   stallId: { type: mongoose.Schema.Types.ObjectId, ref: 'Stall' },
   stallName: String,
-  deviceId: { type: String, default: null }, // device binding
+  deviceId: { type: String, default: null },
+  deviceName: { type: String, default: null },
   fcmToken: String, // for push notifications
   isActive: { type: Boolean, default: true },
   loginAttempts: { type: Number, default: 0 },

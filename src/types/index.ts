@@ -8,6 +8,7 @@ export interface User {
   stallId?: string;
   stallName?: string;
   deviceId?: string;
+  deviceName?: string;
   isActive: boolean;
   createdAt: string;
   lastLogin?: string;
@@ -59,7 +60,8 @@ export interface DailyReport {
     milk: number;        // litres
     sugar: number;       // kg
     teaLeaves: number;   // grams
-    cups: number;        // count
+    cups: number;        // paper cup count
+    kulhadCups: number;  // kulhad cup count
   };
 
   purchases: {
@@ -70,6 +72,7 @@ export interface DailyReport {
   sales: {
     regularCups: number;
     specialCups: number;
+    kulhadCups: number;
     snacks: number;      // ₹
   };
 
@@ -83,6 +86,7 @@ export interface DailyReport {
     sugar: number;
     teaLeaves: number;
     cups: number;
+    kulhadCups: number;
   };
 
   photos: {
@@ -229,6 +233,15 @@ export interface AuditLogEntry {
   createdAt: string;
 }
 
+export interface MenuItem {
+  key: string;
+  name: string;
+  price: number;
+  active: boolean;
+  sortOrder: number;
+  isDefault?: boolean;
+}
+
 export interface StallConfig {
   stallId: string;
   milkMismatchThresholdPct: number;
@@ -237,6 +250,7 @@ export interface StallConfig {
   locationRadiusMeters: number;
   missingReportAlertHour: number;
   cupsIncentivePerCup: number;
+  menuItems?: MenuItem[];
   updatedByName?: string;
   updatedAt?: string;
 }

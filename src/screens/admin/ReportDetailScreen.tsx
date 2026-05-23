@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, ActivityIndicator,
-  TouchableOpacity, TextInput, Alert, Image,
+  TouchableOpacity, TextInput,  Image,
 } from 'react-native';
+import { showAlert } from '../../components/AppAlert';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { reportService } from '../../services/reportService';
@@ -23,7 +24,7 @@ export default function ReportDetailScreen({ route, navigation }: any) {
   useEffect(() => {
     reportService.getReportById(reportId)
       .then(setReport)
-      .catch(() => Alert.alert('Error', 'Could not load report.'))
+      .catch(() => showAlert('Error', 'Could not load report.'))
       .finally(() => setIsLoading(false));
   }, [reportId]);
 
@@ -41,9 +42,9 @@ export default function ReportDetailScreen({ route, navigation }: any) {
         headers: { Authorization: `Bearer ${token}` },
       });
       setReport((r) => r ? { ...r, status } : r);
-      Alert.alert('Done', `Report marked as ${status}.`);
+      showAlert('Done', `Report marked as ${status}.`);
     } catch {
-      Alert.alert('Error', 'Could not update report status.');
+      showAlert('Error', 'Could not update report status.');
     } finally {
       setReviewing(false);
     }

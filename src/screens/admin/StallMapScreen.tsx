@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Platform,
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,  Platform,
 } from 'react-native';
+import { showAlert } from '../../components/AppAlert';
 import MapView, { Marker, Circle, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
@@ -37,7 +38,7 @@ export default function StallMapScreen() {
       setStalls(stallData as StallPoint[]);
       if (loc) setUserLocation(loc);
     }).catch(() => {
-      Alert.alert('Error', 'Could not load stall data.');
+      showAlert('Error', 'Could not load stall data.');
     }).finally(() => setIsLoading(false));
   }, []);
 
