@@ -1,45 +1,36 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+import React, { useEffect } from 'react';
+import { StatusBar, LogBox } from 'react-native';
+import { Provider } from 'react-redux';
+import { PersistGate } from 'redux-persist/integration/react';
+import Toast from 'react-native-toast-message';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { store, persistor } from './src/store';
+import AppNavigator from './src/navigation/AppNavigator';
+import { fcmService } from './src/services/fcmService';
+import { COLORS } from './src/constants';
+import { LanguageProvider } from './src/i18n';
 
-import { NewAppScreen } from '@react-native/new-app-screen';
-import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+LogBox.ignoreLogs(['Non-serializable values were found in the navigation state']);
 
-function App() {
-  const isDarkMode = useColorScheme() === 'dark';
+fcmService.setupBackgroundHandler();
 
-  return (
-    <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <AppContent />
-    </SafeAreaProvider>
-  );
-}
-
-function AppContent() {
-  const safeAreaInsets = useSafeAreaInsets();
+export default function App() {
+  useEffect(() => {
+    // Register FCM token once the app mounts (user must be logged in for this to persist server-side)
+    fcmService.registerToken().catch(() => {});
+  }, []);
 
   return (
-    <View style={styles.container}>
-      <NewAppScreen
-        templateFileName="App.tsx"
-        safeAreaInsets={safeAreaInsets}
-      />
-    </View>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <Provider store={store}>
+        <PersistGate loading={null} persistor={persistor}>
+          <LanguageProvider>
+            <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+            <AppNavigator />
+            <Toast />
+          </LanguageProvider>
+        </PersistGate>
+      </Provider>
+    </GestureHandlerRootView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});
-
-export default App;

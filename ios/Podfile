@@ -5,17 +5,22 @@ require Pod::Executable.execute_command('node', ['-p',
     {paths: [process.argv[1]]},
   )', __dir__]).strip
 
+# Required for @react-native-firebase + Firebase iOS SDK 9+ — see https://rnfirebase.io
+# Must be set before the target that uses use_frameworks!.
+$RNFirebaseAsStaticFramework = true
+
 platform :ios, min_ios_version_supported
 prepare_react_native_project!
 
-linkage = ENV['USE_FRAMEWORKS']
-if linkage != nil
-  Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
-  use_frameworks! :linkage => linkage.to_sym
-end
-
 target 'chaisto' do
   config = use_native_modules!
+
+  # Firebase Swift pods (e.g. FirebaseCoreInternal) need this; works with Hermes on RN 0.73.
+  # Place immediately before use_react_native! per RNFirebase docs.
+  use_frameworks! :linkage => :static
+
+  # Swift Firebase pods need module maps when linked with Google utilities.
+  pod 'GoogleUtilities', :modular_headers => true
 
   use_react_native!(
     :path => config[:reactNativePath],
@@ -30,5 +35,15 @@ target 'chaisto' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    # Align Cocoapods deployment target with the app target (fixes Xcode supported deployment target warnings).
+    app_ios = Gem::Version.new('15.1')
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |cfg|
+        t = Gem::Version.new(cfg.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] || '15.1')
+        next if t >= app_ios
+        cfg.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = app_ios.version
+      end
+    end
   end
 end
