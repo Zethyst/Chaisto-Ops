@@ -24,6 +24,10 @@ export default function StaffManagementScreen() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [search, setSearch] = useState('');
 
+  // Move-stall state
+  const [moveStallTarget, setMoveStallTarget] = useState<User | null>(null);
+  const [movingStall, setMovingStall] = useState(false);
+
   // New user form
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
@@ -140,6 +144,36 @@ export default function StaffManagementScreen() {
     );
   };
 
+  const openMoveStall = (staff: User) => {
+    haptics.light();
+    setMoveStallTarget(staff);
+  };
+
+  const handleMoveStall = async (stallId: string | null) => {
+    if (!moveStallTarget) return;
+    const stallName = stalls.find((s) => s.id === stallId)?.name ?? null;
+    setMovingStall(true);
+    try {
+      await authService.updateStaffStall(moveStallTarget.id, stallId, stallName);
+      setStaffList((prev) =>
+        prev.map((s) => s.id === moveStallTarget.id
+          ? { ...s, stallId: stallId || undefined, stallName: stallName || undefined }
+          : s)
+      );
+      haptics.success();
+      showAlert('Done', stallId
+        ? `${moveStallTarget.name} moved to ${stallName}.`
+        : `${moveStallTarget.name} unassigned from stall.`
+      );
+      setMoveStallTarget(null);
+    } catch {
+      haptics.error();
+      showAlert('Error', 'Could not update stall assignment.');
+    } finally {
+      setMovingStall(false);
+    }
+  };
+
   const filtered = staffList.filter((s) =>
     s.name.toLowerCase().includes(search.toLowerCase()) ||
     s.phone.includes(search)
@@ -235,6 +269,9 @@ export default function StaffManagementScreen() {
                     />
                   </View>
                   <View style={styles.actionBtns}>
+                    <TouchableOpacity style={styles.moveStallBtn} onPress={() => openMoveStall(staff)}>
+                      <Text style={styles.moveStallText}>Change Stall</Text>
+                    </TouchableOpacity>
                     {staff.deviceId && (
                       <TouchableOpacity style={styles.resetBtn} onPress={() => { haptics.heavy(); resetDevice(staff); }}>
                         <Text style={styles.resetBtnText}>Reset Device</Text>
@@ -247,6 +284,47 @@ export default function StaffManagementScreen() {
           ))}
         </ScrollView>
       )}
+
+      {/* Move Stall Modal */}
+      <Modal visible={!!moveStallTarget} animationType="slide" transparent>
+        <View style={styles.moveModalOverlay}>
+          <View style={styles.moveModalCard}>
+            <Text style={styles.moveModalTitle}>Change Stall</Text>
+            <Text style={styles.moveModalSub}>{moveStallTarget?.name}</Text>
+            <ScrollView style={{ maxHeight: 320 }}>
+              <TouchableOpacity
+                style={[styles.stallOption, !moveStallTarget?.stallId && styles.stallOptionActive]}
+                onPress={() => !movingStall && handleMoveStall(null)}
+              >
+                <Text style={[styles.stallOptionText, !moveStallTarget?.stallId && styles.stallOptionTextActive]}>
+                  Unassigned
+                </Text>
+              </TouchableOpacity>
+              {stalls.map((s) => (
+                <TouchableOpacity
+                  key={s.id}
+                  style={[styles.stallOption, moveStallTarget?.stallId === s.id && styles.stallOptionActive]}
+                  onPress={() => !movingStall && handleMoveStall(s.id)}
+                >
+                  {movingStall ? (
+                    <ActivityIndicator color={COLORS.primary} size="small" />
+                  ) : (
+                    <>
+                      <Text style={[styles.stallOptionText, moveStallTarget?.stallId === s.id && styles.stallOptionTextActive]}>
+                        {s.name}
+                      </Text>
+                      {s.address && <Text style={styles.stallAddress}>{s.address}</Text>}
+                    </>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity style={styles.moveModalCancel} onPress={() => setMoveStallTarget(null)}>
+              <Text style={styles.moveModalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Add User Modal */}
       <Modal visible={showAddModal} animationType="slide" presentationStyle="pageSheet">
@@ -423,6 +501,29 @@ const styles = StyleSheet.create({
   actionBtns: { flexDirection: 'row', gap: SPACING.sm },
   resetBtn: { backgroundColor: COLORS.warningBg, borderRadius: BORDER_RADIUS.sm, paddingHorizontal: SPACING.md, paddingVertical: 6 },
   resetBtnText: { fontSize: FONT_SIZE.sm, color: COLORS.warning, fontWeight: '600' },
+  moveStallBtn: { backgroundColor: COLORS.primaryBg, borderRadius: BORDER_RADIUS.sm, paddingHorizontal: SPACING.md, paddingVertical: 6, borderWidth: 1, borderColor: COLORS.border },
+  moveStallText: { fontSize: FONT_SIZE.sm, color: COLORS.primary, fontWeight: '600' },
+
+  moveModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  moveModalCard: {
+    backgroundColor: COLORS.white, borderTopLeftRadius: BORDER_RADIUS.xl,
+    borderTopRightRadius: BORDER_RADIUS.xl, padding: SPACING.xl, paddingBottom: 40,
+  },
+  moveModalTitle: { fontSize: FONT_SIZE.xl, fontWeight: '800', color: COLORS.black, marginBottom: 4 },
+  moveModalSub: { fontSize: FONT_SIZE.sm, color: COLORS.muted, marginBottom: SPACING.lg },
+  stallOption: {
+    borderWidth: 1, borderColor: COLORS.border, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md, marginBottom: SPACING.sm, backgroundColor: COLORS.surface,
+  },
+  stallOptionActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primaryBg },
+  stallOptionText: { fontSize: FONT_SIZE.md, fontWeight: '600', color: COLORS.muted },
+  stallOptionTextActive: { color: COLORS.primary },
+  stallAddress: { fontSize: FONT_SIZE.sm, color: COLORS.muted, marginTop: 2 },
+  moveModalCancel: {
+    marginTop: SPACING.md, borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: BORDER_RADIUS.md, paddingVertical: SPACING.md, alignItems: 'center',
+  },
+  moveModalCancelText: { fontSize: FONT_SIZE.md, color: COLORS.medium, fontWeight: '600' },
 
   modal: { flex: 1, backgroundColor: COLORS.white },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: SPACING.xl, borderBottomWidth: 0.5, borderBottomColor: COLORS.borderLight },

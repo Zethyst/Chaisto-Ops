@@ -23,6 +23,11 @@ export const reportService = {
     return response.data;
   },
 
+  async getReportsByDate(date: string): Promise<DailyReport[]> {
+    const response = await api.get('/reports', { params: { date, limit: 100 } });
+    return response.data?.reports ?? response.data ?? [];
+  },
+
   async getReports({ stallId, days, staffId }: { stallId?: string; days?: number; staffId?: string }): Promise<DailyReport[]> {
     const cacheKey = `${REPORT_CACHE_KEY}_${staffId || ''}_${stallId || ''}_${days || 30}`;
     try {

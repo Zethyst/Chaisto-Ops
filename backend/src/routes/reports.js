@@ -85,12 +85,16 @@ router.post('/', ...allRoles, [
 
 // ─── GET /reports — Fetch reports ────────────────────────────────────────────
 router.get('/', ...allRoles, async (req, res) => {
-  const { stallId, days = 30, staffId, status, page = 1, limit = 20 } = req.query;
+  const { stallId, days = 30, staffId, status, page = 1, limit = 50, date } = req.query;
 
   const filter = {};
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - parseInt(days));
-  filter.submittedAt = { $gte: cutoff };
+  if (date) {
+    filter.date = date; // exact YYYY-MM-DD match
+  } else {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - parseInt(days));
+    filter.submittedAt = { $gte: cutoff };
+  }
 
   // Staff can only see their own reports
   if (req.user.role === 'staff') {

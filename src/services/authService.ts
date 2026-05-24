@@ -86,6 +86,19 @@ export const authService = {
     await api.patch(`/users/${userId}`, { isActive });
   },
 
+  async updateStaffStall(userId: string, stallId: string | null, stallName: string | null): Promise<void> {
+    await api.patch(`/users/${userId}`, { stallId: stallId ?? '', stallName: stallName ?? '' });
+  },
+
+  async createStall(data: { name: string; address?: string; latitude: number; longitude: number; allowedRadiusMeters?: number }): Promise<{ id: string; name: string }> {
+    const response = await api.post('/stalls', data);
+    return response.data;
+  },
+
+  async updateStall(id: string, data: Partial<{ name: string; address: string; latitude: number; longitude: number; allowedRadiusMeters: number; isActive: boolean }>): Promise<void> {
+    await api.patch(`/stalls/${id}`, data);
+  },
+
   async getUsers(): Promise<User[]> {
     const response = await api.get('/users');
     return response.data;

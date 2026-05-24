@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, ActivityIndicator,
-  TouchableOpacity, TextInput,  Image,
+  TouchableOpacity, TextInput, Image, Modal, Dimensions, StatusBar,
 } from 'react-native';
+
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 import { showAlert } from '../../components/AppAlert';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { reportService } from '../../services/reportService';
+import { aiService } from '../../services/aiService';
 import { DailyReport, SuspicionFlag } from '../../types';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
 import { haptics } from '../../utils/haptics';
@@ -20,6 +23,9 @@ export default function ReportDetailScreen({ route, navigation }: any) {
   const [isLoading, setIsLoading] = useState(true);
   const [reviewNote, setReviewNote] = useState('');
   const [reviewing, setReviewing] = useState(false);
+  const [lightboxPhoto, setLightboxPhoto] = useState<{ uri: string; label: string } | null>(null);
+  const [aiNarrative, setAiNarrative] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
     reportService.getReportById(reportId)
@@ -62,14 +68,22 @@ export default function ReportDetailScreen({ route, navigation }: any) {
     );
   }
 
-  const totalCups = (report.sales?.regularCups || 0) + (report.sales?.specialCups || 0);
+  const totalCups = (report.sales?.regularCups || 0) + (report.sales?.specialCups || 0) + (report.sales?.kulhadCups || 0);
   const totalRevenue = (report.payments?.upi || 0) + (report.payments?.cash || 0);
   const upiPct = totalRevenue > 0 ? Math.round((report.payments?.upi / totalRevenue) * 100) : 0;
 
   const statusColor = { submitted: COLORS.info, reviewed: COLORS.success, flagged: COLORS.danger, draft: COLORS.muted };
   const statusBg = { submitted: COLORS.infoBg, reviewed: COLORS.successBg, flagged: COLORS.dangerBg, draft: COLORS.surface };
 
+  const PHOTO_LABELS: Record<string, string> = {
+    cash: 'Cash Tray',
+    cartClosing: 'Cart Closing',
+    stock: 'Stock',
+    milkPacket: 'Milk Packet',
+  };
+
   return (
+    <>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Header */}
       <View style={styles.header}>
@@ -98,6 +112,34 @@ export default function ReportDetailScreen({ route, navigation }: any) {
       {report.flags?.length > 0 && (
         <Section title="🚨 Suspicion Flags">
           {report.flags.map((flag, i) => <FlagRow key={i} flag={flag} />)}
+          {/* AI Narrative */}
+          {aiNarrative ? (
+            <View style={styles.aiNarrativeBox}>
+              <Text style={styles.aiNarrativeLabel}>🤖 AI Analysis</Text>
+              <Text style={styles.aiNarrativeText}>{aiNarrative}</Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.aiAnalyzeBtn}
+              onPress={async () => {
+                setAiLoading(true);
+                try {
+                  const narrative = await aiService.getFlagNarrative(reportId);
+                  setAiNarrative(narrative);
+                } catch {
+                  setAiNarrative('Could not generate analysis. Check your connection.');
+                } finally {
+                  setAiLoading(false);
+                }
+              }}
+              disabled={aiLoading}
+            >
+              {aiLoading
+                ? <ActivityIndicator size="small" color={COLORS.primary} />
+                : <Text style={styles.aiAnalyzeBtnText}>🤖 Generate AI Analysis</Text>
+              }
+            </TouchableOpacity>
+          )}
         </Section>
       )}
 
@@ -105,6 +147,7 @@ export default function ReportDetailScreen({ route, navigation }: any) {
       <Section title="☕ Sales">
         <DataRow label="Regular Chai" value={`${report.sales?.regularCups || 0} cups`} />
         <DataRow label="Special Chai" value={`${report.sales?.specialCups || 0} cups`} />
+        <DataRow label="Kulhad Chai" value={`${report.sales?.kulhadCups || 0} cups`} />
         <DataRow label="Snack Sales" value={`₹${report.sales?.snacks || 0}`} />
         <DataRow label="Total Cups" value={`${totalCups} cups`} bold />
         <DataRow label="Est. Revenue" value={`₹${report.computed?.totalRevenue || 0}`} bold />
@@ -124,6 +167,7 @@ export default function ReportDetailScreen({ route, navigation }: any) {
         <DataRow label="Sugar" value={`${report.openingStock?.sugar || 0} kg`} />
         <DataRow label="Tea Leaves" value={`${report.openingStock?.teaLeaves || 0} g`} />
         <DataRow label="Paper Cups" value={String(report.openingStock?.cups || 0)} />
+        <DataRow label="Kulhad Cups" value={String(report.openingStock?.kulhadCups || 0)} />
       </Section>
 
       {/* Closing Stock */}
@@ -132,6 +176,7 @@ export default function ReportDetailScreen({ route, navigation }: any) {
         <DataRow label="Sugar" value={`${report.closingStock?.sugar || 0} kg`} />
         <DataRow label="Tea Leaves" value={`${report.closingStock?.teaLeaves || 0} g`} />
         <DataRow label="Paper Cups" value={String(report.closingStock?.cups || 0)} />
+        <DataRow label="Kulhad Cups" value={String(report.closingStock?.kulhadCups || 0)} />
       </Section>
 
       {/* Computed */}
@@ -154,14 +199,28 @@ export default function ReportDetailScreen({ route, navigation }: any) {
       </Section>
 
       {/* Photos */}
-      <Section title="📸 Photos">
+      <Section title="📸 Evidence Photos">
         <View style={styles.photoGrid}>
           {Object.entries(report.photos || {}).map(([key, url]) => url ? (
-            <View key={key} style={styles.photoItem}>
+            <TouchableOpacity
+              key={key}
+              style={styles.photoItem}
+              onPress={() => setLightboxPhoto({ uri: url as string, label: PHOTO_LABELS[key] || key })}
+              activeOpacity={0.85}
+            >
               <Image source={{ uri: url as string }} style={styles.photo} resizeMode="cover" />
-              <Text style={styles.photoLabel}>{key.replace(/([A-Z])/g, ' $1').trim()}</Text>
+              <View style={styles.photoLabelOverlay}>
+                <Text style={styles.photoLabel}>{PHOTO_LABELS[key] || key.replace(/([A-Z])/g, ' $1').trim()}</Text>
+                <Text style={styles.photoTap}>Tap to expand</Text>
+              </View>
+            </TouchableOpacity>
+          ) : (
+            <View key={key} style={[styles.photoItem, styles.photoMissing]}>
+              <Text style={styles.photoMissingIcon}>📷</Text>
+              <Text style={styles.photoMissingText}>{PHOTO_LABELS[key] || key}</Text>
+              <Text style={styles.photoMissingSub}>Not captured</Text>
             </View>
-          ) : null)}
+          ))}
         </View>
       </Section>
 
@@ -196,6 +255,29 @@ export default function ReportDetailScreen({ route, navigation }: any) {
         </Section>
       )}
     </ScrollView>
+
+    {/* Photo Lightbox */}
+    <Modal visible={!!lightboxPhoto} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setLightboxPhoto(null)}>
+      <View style={styles.lightboxOverlay}>
+        <StatusBar hidden />
+        <TouchableOpacity style={styles.lightboxClose} onPress={() => setLightboxPhoto(null)}>
+          <Text style={styles.lightboxCloseText}>✕</Text>
+        </TouchableOpacity>
+        {lightboxPhoto && (
+          <Image
+            source={{ uri: lightboxPhoto.uri }}
+            style={styles.lightboxImage}
+            resizeMode="contain"
+          />
+        )}
+        {lightboxPhoto && (
+          <View style={styles.lightboxLabel}>
+            <Text style={styles.lightboxLabelText}>{lightboxPhoto.label}</Text>
+          </View>
+        )}
+      </View>
+    </Modal>
+    </>
   );
 }
 
@@ -293,9 +375,37 @@ const styles = StyleSheet.create({
   sevText: { color: '#fff', fontSize: 10, fontWeight: '700' },
 
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, padding: SPACING.md },
-  photoItem: { width: '47%' },
-  photo: { width: '100%', height: 120, borderRadius: BORDER_RADIUS.sm, backgroundColor: COLORS.borderLight },
-  photoLabel: { fontSize: 11, color: COLORS.muted, marginTop: 4, textTransform: 'capitalize' },
+  photoItem: { width: '47%', borderRadius: BORDER_RADIUS.md, overflow: 'hidden', backgroundColor: COLORS.borderLight },
+  photo: { width: '100%', height: 140, borderRadius: BORDER_RADIUS.md },
+  photoLabelOverlay: {
+    backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: SPACING.sm, paddingVertical: 6,
+  },
+  photoLabel: { fontSize: 12, color: '#fff', fontWeight: '700', textTransform: 'capitalize' },
+  photoTap: { fontSize: 10, color: 'rgba(255,255,255,0.7)', marginTop: 1 },
+  photoMissing: {
+    height: 140, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: COLORS.border, borderStyle: 'dashed',
+  },
+  photoMissingIcon: { fontSize: 24, opacity: 0.3, marginBottom: 4 },
+  photoMissingText: { fontSize: FONT_SIZE.sm, color: COLORS.muted, fontWeight: '600' },
+  photoMissingSub: { fontSize: 10, color: COLORS.muted, marginTop: 2 },
+
+  lightboxOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.96)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  lightboxClose: {
+    position: 'absolute', top: 50, right: 20, zIndex: 10,
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center',
+  },
+  lightboxCloseText: { color: '#fff', fontSize: 20, fontWeight: '700' },
+  lightboxImage: { width: SCREEN_W, height: SCREEN_H * 0.75 },
+  lightboxLabel: {
+    position: 'absolute', bottom: 60, left: 0, right: 0,
+    alignItems: 'center',
+  },
+  lightboxLabelText: { color: '#fff', fontSize: FONT_SIZE.lg, fontWeight: '700', letterSpacing: 0.5 },
 
   reviewInput: {
     borderWidth: 1, borderColor: COLORS.border, borderRadius: BORDER_RADIUS.sm,
@@ -311,4 +421,18 @@ const styles = StyleSheet.create({
   approveBtn: { backgroundColor: COLORS.successBg, borderColor: COLORS.success },
   flagBtn: { backgroundColor: COLORS.dangerBg, borderColor: COLORS.danger },
   reviewBtnText: { fontWeight: '700', fontSize: FONT_SIZE.md, color: COLORS.success },
+
+  aiAnalyzeBtn: {
+    marginTop: SPACING.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.primaryBg, borderRadius: BORDER_RADIUS.md,
+    paddingVertical: SPACING.md, borderWidth: 1, borderColor: COLORS.border,
+  },
+  aiAnalyzeBtnText: { fontSize: FONT_SIZE.sm, fontWeight: '700', color: COLORS.primary },
+  aiNarrativeBox: {
+    marginTop: SPACING.md, backgroundColor: COLORS.primaryBg,
+    borderRadius: BORDER_RADIUS.md, padding: SPACING.md,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  aiNarrativeLabel: { fontSize: 12, fontWeight: '800', color: COLORS.primaryDark, marginBottom: 6 },
+  aiNarrativeText: { fontSize: FONT_SIZE.sm, color: COLORS.dark, lineHeight: 20 },
 });

@@ -7,6 +7,7 @@ const menuItemSchema = new mongoose.Schema({
   active: { type: Boolean, default: true },
   sortOrder: { type: Number, default: 0 },
   isDefault: { type: Boolean, default: false },
+  recipe: { type: String, default: '' },
 }, { _id: false });
 
 const DEFAULT_MENU_ITEMS = [

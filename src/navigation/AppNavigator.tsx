@@ -25,6 +25,8 @@ import AlertsConfigScreen from '../screens/admin/AlertsConfigScreen';
 import AttendanceScreen from '../screens/admin/AttendanceScreen';
 import PayrollScreen from '../screens/admin/PayrollScreen';
 import MenuPricingScreen from '../screens/admin/MenuPricingScreen';
+import ReportsListScreen from '../screens/admin/ReportsListScreen';
+import StallManagementScreen from '../screens/admin/StallManagementScreen';
 
 // Staff
 import StaffDashboard from '../screens/staff/StaffDashboard';
@@ -153,6 +155,8 @@ function AdminStack() {
       <Stack.Screen name="Attendance" component={AttendanceScreen} options={{ ...headerOpts, title: t('screenAttendance') }} />
       <Stack.Screen name="Payroll" component={PayrollScreen} options={{ ...headerOpts, title: t('screenPayroll') }} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ ...headerOpts, title: 'Notifications' }} />
+      <Stack.Screen name="ReportsList" component={ReportsListScreen} options={{ ...headerOpts, title: 'Daily Reports' }} />
+      <Stack.Screen name="StallManagement" component={StallManagementScreen} options={{ ...headerOpts, title: 'Stall Management' }} />
     </Stack.Navigator>
   );
 }

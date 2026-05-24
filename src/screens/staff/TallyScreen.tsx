@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Animated, Pressable,
+  TextInput, Animated, Pressable, Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
@@ -16,6 +16,7 @@ import { startNewReport, preFillFromTally } from '../../store/slices/reportSlice
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
 import { haptics } from '../../utils/haptics';
 import { showAlert } from '../../components/AppAlert';
+import { useLanguage } from '../../i18n';
 
 const MILK_ML_PER_PACKET = 500;
 const MILK_COST_PER_PACKET = 30;
@@ -47,7 +48,7 @@ function CounterButton({ onPress, onLongPress, label, style, textStyle }: any) {
 }
 
 // ─── Counter card ─────────────────────────────────────────────────────────────
-function CounterCard({ item, count, onIncrement, onDecrement, onLongIncrement, onLongDecrement }: any) {
+function CounterCard({ item, count, onIncrement, onDecrement, onLongIncrement, onLongDecrement, perCupLabel, onPressRecipe }: any) {
   const subtotal = count * item.price;
 
   const countScale = useRef(new Animated.Value(1)).current;
@@ -67,9 +68,16 @@ function CounterCard({ item, count, onIncrement, onDecrement, onLongIncrement, o
   return (
     <View style={counterStyles.card}>
       <View style={counterStyles.cardHeader}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={counterStyles.itemName}>{item.name}</Text>
-          <Text style={counterStyles.itemPrice}>₹{item.price} per cup</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={counterStyles.itemPrice}>₹{item.price} {perCupLabel}</Text>
+            {item.recipe && (
+              <TouchableOpacity style={counterStyles.recipeBtn} onPress={onPressRecipe}>
+                <Text style={counterStyles.recipeBtnText}>📖 Recipe</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
         {count > 0 && (
           <View style={counterStyles.subtotalBadge}>
@@ -120,12 +128,14 @@ function CounterCard({ item, count, onIncrement, onDecrement, onLongIncrement, o
 export default function TallyScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch<AppDispatch>();
+  const { t } = useLanguage();
   const { user } = useSelector((s: RootState) => s.auth);
   const { items, tally } = useSelector((s: RootState) => s.menu);
   const { currentDraft, todayReport } = useSelector((s: RootState) => s.reports);
 
   const [upiInput, setUpiInput] = useState(tally.upi === 0 ? '' : String(tally.upi));
   const [cashInput, setCashInput] = useState(tally.cash === 0 ? '' : String(tally.cash));
+  const [recipeModal, setRecipeModal] = useState<{ name: string; recipe: string } | null>(null);
 
   useEffect(() => {
     dispatch(ensureFreshTally());
@@ -156,9 +166,9 @@ export default function TallyScreen({ navigation }: any) {
 
   const handleReset = () => {
     haptics.heavy();
-    showAlert('Reset Tally', "Clear all today's counts and payments?", [
+    showAlert(t('tallyResetTitle'), t('tallyResetConfirm'), [
       {
-        text: 'Reset', style: 'destructive',
+        text: t('tallyResetBtn'), style: 'destructive',
         onPress: () => {
           dispatch(resetTally());
           setUpiInput('');
@@ -166,24 +176,22 @@ export default function TallyScreen({ navigation }: any) {
           haptics.success();
         },
       },
-      { text: 'Cancel', style: 'cancel' },
+      { text: t('cancel'), style: 'cancel' },
     ]);
   };
 
   const handleStartReport = () => {
     if (todayReport) {
-      showAlert("Report Already Submitted", "You've already submitted today's report.");
+      showAlert(t('tallyAlreadySubmittedTitle'), t('tallyAlreadySubmittedMsg'));
       return;
     }
     haptics.heavy();
     showAlert(
-      'Start Report',
-      hasTallyData
-        ? 'Pre-fill sales and payments from today\'s tally?'
-        : 'Start today\'s daily report?',
+      t('tallyStartReportTitle'),
+      hasTallyData ? t('tallyPreFillMsg') : t('tallyStartFreshMsg'),
       [
         {
-          text: hasTallyData ? 'Use Tally Data' : 'Start',
+          text: hasTallyData ? t('tallyUseTallyData') : t('startDailyReport'),
           onPress: () => {
             if (!currentDraft) {
               dispatch(startNewReport({
@@ -196,24 +204,25 @@ export default function TallyScreen({ navigation }: any) {
             navigation.navigate('DailyReport');
           },
         },
-        hasTallyData ? { text: 'Start Fresh', onPress: () => navigation.navigate('DailyReport') } : null,
-        { text: 'Cancel', style: 'cancel' as const },
+        hasTallyData ? { text: t('tallyStartFreshBtn'), onPress: () => navigation.navigate('DailyReport') } : null,
+        { text: t('cancel'), style: 'cancel' as const },
       ].filter(Boolean) as any
     );
   };
 
   return (
+    <>
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerOrb} />
         <View>
-          <Text style={styles.headerTitle}>Today's Tally</Text>
+          <Text style={styles.headerTitle}>{t('tallyTitle')}</Text>
           <Text style={styles.headerDate}>{dateStr}</Text>
         </View>
         {hasTallyData && (
           <TouchableOpacity style={styles.resetBtn} onPress={handleReset}>
-            <Text style={styles.resetBtnText}>↺ Reset</Text>
+            <Text style={styles.resetBtnText}>{t('tallyResetBtn')}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -222,14 +231,14 @@ export default function TallyScreen({ navigation }: any) {
       <View style={styles.totalsStrip}>
         <View style={styles.totalItem}>
           <Text style={styles.totalValue}>{totalCups}</Text>
-          <Text style={styles.totalLabel}>CUPS</Text>
+          <Text style={styles.totalLabel}>{t('cups').toUpperCase()}</Text>
         </View>
         <View style={styles.totalDivider} />
         <View style={styles.totalItem}>
           <Text style={[styles.totalValue, { color: COLORS.success }]}>
             ₹{totalRevenue.toLocaleString('en-IN')}
           </Text>
-          <Text style={styles.totalLabel}>EST. REVENUE</Text>
+          <Text style={styles.totalLabel}>{t('tallyEstRevenue')}</Text>
         </View>
         <View style={styles.totalDivider} />
         <View style={styles.totalItem}>
@@ -239,7 +248,7 @@ export default function TallyScreen({ navigation }: any) {
           }]}>
             ₹{totalPayments.toLocaleString('en-IN')}
           </Text>
-          <Text style={styles.totalLabel}>COLLECTED</Text>
+          <Text style={styles.totalLabel}>{t('tallyCollected')}</Text>
         </View>
       </View>
 
@@ -249,14 +258,16 @@ export default function TallyScreen({ navigation }: any) {
         showsVerticalScrollIndicator={false}
       >
         {/* Cup counters */}
-        <Text style={styles.sectionLabel}>CUP COUNTERS</Text>
-        <Text style={styles.sectionHint}>Tap + for each cup sold · Long-press +5</Text>
+        <Text style={styles.sectionLabel}>{t('tallyCupCounters')}</Text>
+        <Text style={styles.sectionHint}>{t('tallyCupCountersHint')}</Text>
 
         {activeItems.map((item) => (
           <CounterCard
             key={item.key}
             item={item}
             count={tally.counters[item.key] || 0}
+            perCupLabel={t('tallyPerCup')}
+            onPressRecipe={() => setRecipeModal({ name: item.name, recipe: item.recipe || '' })}
             onIncrement={() => {
               haptics.selection();
               dispatch(incrementTally({ key: item.key }));
@@ -279,20 +290,20 @@ export default function TallyScreen({ navigation }: any) {
         {activeItems.length === 0 && (
           <View style={styles.emptyMenuNote}>
             <Text style={styles.emptyMenuIcon}>☕</Text>
-            <Text style={styles.emptyMenuText}>No menu items configured.</Text>
-            <Text style={styles.emptyMenuSub}>Ask admin to set up the menu.</Text>
+            <Text style={styles.emptyMenuText}>{t('tallyNoMenuItems')}</Text>
+            <Text style={styles.emptyMenuSub}>{t('tallyNoMenuItemsSub')}</Text>
           </View>
         )}
 
         {/* Milk expense counter */}
-        <Text style={[styles.sectionLabel, { marginTop: SPACING.xl }]}>MILK EXPENSE</Text>
-        <Text style={styles.sectionHint}>500ml per packet · ₹30 cost · Long-press ±5</Text>
+        <Text style={[styles.sectionLabel, { marginTop: SPACING.xl }]}>{t('tallyMilkExpense')}</Text>
+        <Text style={styles.sectionHint}>{t('tallyMilkHint')}</Text>
 
         <View style={milkStyles.card}>
           <View style={milkStyles.cardHeader}>
             <View>
-              <Text style={milkStyles.title}>🥛 Milk Packets</Text>
-              <Text style={milkStyles.subtitle}>500 ml / packet · ₹30 each</Text>
+              <Text style={milkStyles.title}>{t('tallyMilkTitle')}</Text>
+              <Text style={milkStyles.subtitle}>{t('tallyMilkSubtitle')}</Text>
             </View>
             {tally.milkPackets > 0 && (
               <View style={milkStyles.infoBadge}>
@@ -346,14 +357,14 @@ export default function TallyScreen({ navigation }: any) {
         </View>
 
         {/* Payment tally */}
-        <Text style={[styles.sectionLabel, { marginTop: SPACING.xl }]}>PAYMENT TALLY</Text>
-        <Text style={styles.sectionHint}>Running total of cash and UPI received</Text>
+        <Text style={[styles.sectionLabel, { marginTop: SPACING.xl }]}>{t('tallyPaymentTally')}</Text>
+        <Text style={styles.sectionHint}>{t('tallyPaymentHint')}</Text>
 
         <View style={styles.paymentCard}>
           <View style={styles.paymentRow}>
             <View style={styles.paymentLabelCol}>
               <Text style={styles.paymentMode}>📱 UPI</Text>
-              <Text style={styles.paymentSub}>PhonePe · GPay · Paytm</Text>
+              <Text style={styles.paymentSub}>{t('tallyUpiSub')}</Text>
             </View>
             <View style={styles.paymentInputWrap}>
               <Text style={styles.rupeeSign}>₹</Text>
@@ -377,7 +388,7 @@ export default function TallyScreen({ navigation }: any) {
           <View style={styles.paymentRow}>
             <View style={styles.paymentLabelCol}>
               <Text style={styles.paymentMode}>💵 Cash</Text>
-              <Text style={styles.paymentSub}>Physical currency received</Text>
+              <Text style={styles.paymentSub}>{t('tallyCashSub')}</Text>
             </View>
             <View style={styles.paymentInputWrap}>
               <Text style={styles.rupeeSign}>₹</Text>
@@ -400,19 +411,21 @@ export default function TallyScreen({ navigation }: any) {
           {totalPayments > 0 && totalRevenue > 0 && Math.abs(totalPayments - totalRevenue) > 50 && (
             <View style={styles.mismatchRow}>
               <Text style={styles.mismatchText}>
-                ⚠️ Collected ₹{totalPayments} vs estimated ₹{totalRevenue} — verify entries
+                ⚠️ {t('tallyMismatchWarning')
+                  .replace('{collected}', String(totalPayments))
+                  .replace('{estimated}', String(totalRevenue))}
               </Text>
             </View>
           )}
         </View>
 
         {/* Notes */}
-        <Text style={[styles.sectionLabel, { marginTop: SPACING.xl }]}>NOTES (OPTIONAL)</Text>
+        <Text style={[styles.sectionLabel, { marginTop: SPACING.xl }]}>{t('tallyNotesSectionLabel')}</Text>
         <TextInput
           style={styles.notesInput}
           value={tally.notes}
-          onChangeText={(t) => dispatch(setTallyNotes(t))}
-          placeholder="Any notes for the report..."
+          onChangeText={(text) => dispatch(setTallyNotes(text))}
+          placeholder={t('tallyNotesPlaceholder')}
           placeholderTextColor={COLORS.muted}
           multiline
           numberOfLines={3}
@@ -440,11 +453,31 @@ export default function TallyScreen({ navigation }: any) {
           activeOpacity={0.85}
         >
           <Text style={styles.ctaBtnText}>
-            {todayReport ? '✓  Report Submitted' : '📊  Start Daily Report'}
+            {todayReport ? t('tallyReportDoneBtn') : t('tallyStartReportBtn')}
           </Text>
         </TouchableOpacity>
       </View>
     </View>
+
+    {/* Recipe Modal */}
+    <Modal visible={!!recipeModal} transparent animationType="slide" onRequestClose={() => setRecipeModal(null)}>
+      <View style={recipeModalStyles.overlay}>
+        <View style={recipeModalStyles.sheet}>
+          <View style={recipeModalStyles.handle} />
+          <Text style={recipeModalStyles.title}>{recipeModal?.name}</Text>
+          <View style={recipeModalStyles.badge}>
+            <Text style={recipeModalStyles.badgeText}>📖 RECIPE</Text>
+          </View>
+          <ScrollView style={recipeModalStyles.scroll} showsVerticalScrollIndicator={false}>
+            <Text style={recipeModalStyles.recipeText}>{recipeModal?.recipe || 'No recipe added yet.'}</Text>
+          </ScrollView>
+          <TouchableOpacity style={recipeModalStyles.closeBtn} onPress={() => setRecipeModal(null)}>
+            <Text style={recipeModalStyles.closeBtnText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+    </>
   );
 }
 
@@ -559,6 +592,12 @@ const counterStyles = StyleSheet.create({
   },
   itemName: { fontSize: FONT_SIZE.lg, fontWeight: '800', color: COLORS.black },
   itemPrice: { fontSize: FONT_SIZE.sm, color: COLORS.muted, marginTop: 2 },
+  recipeBtn: {
+    backgroundColor: COLORS.primaryBg, borderRadius: BORDER_RADIUS.full,
+    paddingHorizontal: 8, paddingVertical: 3,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  recipeBtnText: { fontSize: 11, fontWeight: '700', color: COLORS.primary },
   subtotalBadge: {
     backgroundColor: COLORS.primaryBg, borderRadius: BORDER_RADIUS.full,
     paddingHorizontal: SPACING.md, paddingVertical: 6,
@@ -626,4 +665,32 @@ const milkStyles = StyleSheet.create({
     height: 4, backgroundColor: '#F5E19A', borderRadius: 2, marginTop: SPACING.md, overflow: 'hidden',
   },
   progressFill: { height: '100%', backgroundColor: '#D4A017', borderRadius: 2 },
+});
+
+const recipeModalStyles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: COLORS.white, borderTopLeftRadius: BORDER_RADIUS.xl,
+    borderTopRightRadius: BORDER_RADIUS.xl, padding: SPACING.xl, paddingBottom: 40, maxHeight: '70%',
+  },
+  handle: {
+    width: 40, height: 4, backgroundColor: COLORS.borderLight,
+    borderRadius: 2, alignSelf: 'center', marginBottom: SPACING.lg,
+  },
+  title: { fontSize: FONT_SIZE.xl, fontWeight: '800', color: COLORS.black, marginBottom: SPACING.sm },
+  badge: {
+    backgroundColor: COLORS.primaryBg, borderRadius: BORDER_RADIUS.full,
+    paddingHorizontal: SPACING.md, paddingVertical: 4, alignSelf: 'flex-start',
+    marginBottom: SPACING.lg, borderWidth: 1, borderColor: COLORS.border,
+  },
+  badgeText: { fontSize: 11, color: COLORS.primaryLight, fontWeight: '700', letterSpacing: 0.5 },
+  scroll: { marginBottom: SPACING.lg },
+  recipeText: {
+    fontSize: FONT_SIZE.md, color: COLORS.dark, lineHeight: 26,
+  },
+  closeBtn: {
+    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md, borderWidth: 1,
+    borderColor: COLORS.border, paddingVertical: SPACING.md, alignItems: 'center',
+  },
+  closeBtnText: { fontSize: FONT_SIZE.md, fontWeight: '700', color: COLORS.medium },
 });

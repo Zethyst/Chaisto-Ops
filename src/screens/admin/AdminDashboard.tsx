@@ -9,6 +9,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
 import { reportService } from '../../services/reportService';
+import { aiService } from '../../services/aiService';
 import { fetchMenuConfig } from '../../store/slices/menuSlice';
 import { haptics } from '../../utils/haptics';
 import { useLanguage } from '../../i18n';
@@ -55,6 +56,9 @@ export default function AdminDashboard({ navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [period, setPeriod] = useState<7 | 30>(7);
+  const [dailyTip, setDailyTip] = useState<string | null>(null);
+  const [inventoryAlert, setInventoryAlert] = useState<{ alert: string; milkPacketsNeeded: number } | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -72,8 +76,21 @@ export default function AdminDashboard({ navigation }: any) {
     }
   }, [period]);
 
+  const loadAiInsights = useCallback(async () => {
+    setAiLoading(true);
+    const stallId = user?.stallId;
+    const [tipResult, alertResult] = await Promise.allSettled([
+      aiService.getDailyTip(stallId),
+      aiService.getInventoryAlert(stallId),
+    ]);
+    if (tipResult.status === 'fulfilled') setDailyTip(tipResult.value);
+    if (alertResult.status === 'fulfilled') setInventoryAlert(alertResult.value);
+    setAiLoading(false);
+  }, [user?.stallId]);
+
   useEffect(() => { setIsLoading(true); loadData(); }, [period]);
   useEffect(() => { if (user?.stallId) dispatch(fetchMenuConfig(user.stallId)); }, []);
+  useEffect(() => { loadAiInsights(); }, []);
 
   const onRefresh = () => { setRefreshing(true); loadData(); };
 
@@ -157,6 +174,42 @@ export default function AdminDashboard({ navigation }: any) {
         ))}
       </View>
 
+      {/* AI Insights row */}
+      {(dailyTip || inventoryAlert || aiLoading) && (
+        <View style={styles.aiRow}>
+          {/* Daily Tip */}
+          <View style={styles.aiCard}>
+            <View style={styles.aiCardHeader}>
+              <Text style={styles.aiCardIcon}>💡</Text>
+              <Text style={styles.aiCardTitle}>Today's Tip</Text>
+              {aiLoading && !dailyTip && <ActivityIndicator size="small" color={COLORS.primary} style={{ marginLeft: 'auto' }} />}
+            </View>
+            <Text style={styles.aiCardText}>{dailyTip || '  Loading insight…'}</Text>
+          </View>
+
+          {/* Inventory Alert */}
+          {(inventoryAlert || (aiLoading && !inventoryAlert)) && (
+            <View style={[styles.aiCard, styles.aiCardInventory]}>
+              <View style={styles.aiCardHeader}>
+                <Text style={styles.aiCardIcon}>📦</Text>
+                <Text style={[styles.aiCardTitle, { color: '#7A5C00' }]}>Inventory</Text>
+                {aiLoading && !inventoryAlert && <ActivityIndicator size="small" color="#D4A017" style={{ marginLeft: 'auto' }} />}
+              </View>
+              {inventoryAlert && (
+                <>
+                  <Text style={[styles.aiCardText, { color: '#5C4000' }]}>{inventoryAlert.alert}</Text>
+                  {inventoryAlert.milkPacketsNeeded > 0 && (
+                    <View style={styles.aiInventoryBadge}>
+                      <Text style={styles.aiInventoryBadgeText}>Buy {inventoryAlert.milkPacketsNeeded} packet{inventoryAlert.milkPacketsNeeded !== 1 ? 's' : ''}</Text>
+                    </View>
+                  )}
+                </>
+              )}
+            </View>
+          )}
+        </View>
+      )}
+
       {isLoading ? (
         <ActivityIndicator style={{ margin: SPACING.xl * 2 }} color={COLORS.primary} />
       ) : (
@@ -239,7 +292,7 @@ export default function AdminDashboard({ navigation }: any) {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>{t('suspicionAlerts')}</Text>
-              <TouchableOpacity onPress={() => { haptics.light(); navigation.navigate('Analytics'); }}>
+              <TouchableOpacity onPress={() => { haptics.light(); navigation.navigate('ReportsList'); }}>
                 <Text style={styles.seeAll}>See all</Text>
               </TouchableOpacity>
             </View>
@@ -267,7 +320,9 @@ export default function AdminDashboard({ navigation }: any) {
             <Text style={styles.sectionTitle}>{t('quickActions')}</Text>
             <View style={styles.actionGrid}>
               {[
+                { label: 'Reports', icon: '📋', screen: 'ReportsList' },
                 { label: 'Staff', icon: '👥', screen: 'StaffManagement' },
+                { label: 'Stalls', icon: '🏪', screen: 'StallManagement' },
                 { label: 'Inventory', icon: '📦', screen: 'InventoryManagement' },
                 { label: 'Map', icon: '🗺️', screen: 'StallMap' },
                 { label: 'Analytics', icon: '📊', screen: 'Analytics' },
@@ -376,6 +431,23 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   notifCount: { color: '#fff', fontSize: 10, fontWeight: '700' },
+
+  aiRow: { paddingHorizontal: SPACING.xl, paddingBottom: SPACING.md, gap: SPACING.sm },
+  aiCard: {
+    backgroundColor: COLORS.primaryBg, borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg, borderWidth: 1, borderColor: COLORS.border, ...SHADOWS.sm,
+  },
+  aiCardInventory: { backgroundColor: '#FFFBF0', borderColor: '#F5C842' },
+  aiCardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.sm },
+  aiCardIcon: { fontSize: 18, marginRight: SPACING.xs },
+  aiCardTitle: { fontSize: FONT_SIZE.sm, fontWeight: '800', color: COLORS.primaryDark },
+  aiCardText: { fontSize: FONT_SIZE.sm, color: COLORS.dark, lineHeight: 20 },
+  aiInventoryBadge: {
+    alignSelf: 'flex-start', marginTop: SPACING.sm,
+    backgroundColor: '#F5C842', borderRadius: BORDER_RADIUS.full,
+    paddingHorizontal: SPACING.md, paddingVertical: 3,
+  },
+  aiInventoryBadgeText: { fontSize: 12, fontWeight: '800', color: '#5C4000' },
 
   toggleRow: {
     flexDirection: 'row', margin: SPACING.xl, marginBottom: SPACING.lg,

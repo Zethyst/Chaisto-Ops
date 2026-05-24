@@ -32,14 +32,15 @@ router.patch('/:id/profile', ...allRoles, async (req, res) => {
   }
 });
 
-// PATCH /v1/users/:id — toggle isActive (admin only)
+// PATCH /v1/users/:id — update user fields (admin only)
 router.patch('/:id', ...adminOnly, async (req, res) => {
   try {
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      { isActive: req.body.isActive },
-      { new: true }
-    );
+    const { isActive, stallId, stallName } = req.body;
+    const updates = {};
+    if (isActive != null) updates.isActive = isActive;
+    if (stallId !== undefined) updates.stallId = stallId || null;
+    if (stallName !== undefined) updates.stallName = stallName || null;
+    const user = await User.findByIdAndUpdate(req.params.id, { $set: updates }, { new: true });
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json(user.toSafeObject());
   } catch {

@@ -106,7 +106,7 @@ const menuSlice = createSlice({
     decrementMilkPackets: (state, action: PayloadAction<number | undefined>) => {
       state.tally.milkPackets = Math.max(0, state.tally.milkPackets - (action.payload ?? 1));
     },
-    addMenuItem: (state, action: PayloadAction<{ name: string; price: number }>) => {
+    addMenuItem: (state, action: PayloadAction<{ name: string; price: number; recipe?: string }>) => {
       const key = `custom_${Date.now()}`;
       state.items.push({
         key,
@@ -115,14 +115,16 @@ const menuSlice = createSlice({
         active: true,
         sortOrder: state.items.length,
         isDefault: false,
+        recipe: action.payload.recipe ?? '',
       });
     },
-    updateMenuItem: (state, action: PayloadAction<{ key: string; name?: string; price?: number; active?: boolean }>) => {
+    updateMenuItem: (state, action: PayloadAction<{ key: string; name?: string; price?: number; active?: boolean; recipe?: string }>) => {
       const item = state.items.find(i => i.key === action.payload.key);
       if (item) {
         if (action.payload.name !== undefined) item.name = action.payload.name;
         if (action.payload.price !== undefined) item.price = action.payload.price;
         if (action.payload.active !== undefined) item.active = action.payload.active;
+        if (action.payload.recipe !== undefined) item.recipe = action.payload.recipe;
       }
     },
     removeMenuItem: (state, action: PayloadAction<string>) => {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, ActivityIndicator, Switch,
+  TextInput, ActivityIndicator, Switch, Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
@@ -15,6 +15,7 @@ import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../consta
 import { haptics } from '../../utils/haptics';
 import { showAlert } from '../../components/AppAlert';
 import { authService } from '../../services/authService';
+import { aiService } from '../../services/aiService';
 
 export default function MenuPricingScreen({ navigation }: any) {
   const isTab = !navigation?.canGoBack?.();
@@ -31,11 +32,13 @@ export default function MenuPricingScreen({ navigation }: any) {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editPrice, setEditPrice] = useState('');
+  const [editRecipe, setEditRecipe] = useState('');
 
   // Add-item form
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState('');
   const [newPrice, setNewPrice] = useState('');
+  const [newRecipe, setNewRecipe] = useState('');
 
   useEffect(() => {
     const load = async () => {
@@ -65,6 +68,7 @@ export default function MenuPricingScreen({ navigation }: any) {
     setEditingKey(item.key);
     setEditName(item.name);
     setEditPrice(String(item.price));
+    setEditRecipe(item.recipe ?? '');
   };
 
   const saveEdit = () => {
@@ -75,7 +79,7 @@ export default function MenuPricingScreen({ navigation }: any) {
       return;
     }
     haptics.medium();
-    dispatch(updateMenuItem({ key: editingKey, name: editName.trim(), price }));
+    dispatch(updateMenuItem({ key: editingKey, name: editName.trim(), price, recipe: editRecipe.trim() }));
     setEditingKey(null);
   };
 
@@ -114,9 +118,10 @@ export default function MenuPricingScreen({ navigation }: any) {
       return;
     }
     haptics.medium();
-    dispatch(addMenuItem({ name: newName.trim(), price }));
+    dispatch(addMenuItem({ name: newName.trim(), price, recipe: newRecipe.trim() }));
     setNewName('');
     setNewPrice('');
+    setNewRecipe('');
     setShowAddForm(false);
   };
 
@@ -169,6 +174,31 @@ export default function MenuPricingScreen({ navigation }: any) {
     });
   };
 
+  type PriceSuggestion = { itemKey: string; itemName: string; currentPrice: number; suggestedPrice: number; reason: string };
+  const [optimizations, setOptimizations] = useState<PriceSuggestion[]>([]);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [showOptimizer, setShowOptimizer] = useState(false);
+
+  const handleOptimize = async () => {
+    setIsOptimizing(true);
+    setShowOptimizer(true);
+    try {
+      const suggestions = await aiService.getPriceOptimizations(resolvedStallId ?? undefined, items);
+      setOptimizations(suggestions);
+    } catch {
+      showAlert('AI Error', 'Could not generate price suggestions. Ensure the server has a valid ANTHROPIC_API_KEY.');
+      setShowOptimizer(false);
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
+
+  const applyOptimization = (suggestion: PriceSuggestion) => {
+    haptics.medium();
+    dispatch(updateMenuItem({ key: suggestion.itemKey, price: suggestion.suggestedPrice }));
+    setOptimizations(prev => prev.filter(s => s.itemKey !== suggestion.itemKey));
+  };
+
   const activeItems = items.filter(i => i.active);
   const totalRevEstimate = activeItems.reduce((sum, i) => sum + i.price, 0);
 
@@ -209,6 +239,14 @@ export default function MenuPricingScreen({ navigation }: any) {
           </Text>
         </View>
 
+        {/* Price Optimizer */}
+        <TouchableOpacity style={styles.optimizeBtn} onPress={handleOptimize} disabled={isOptimizing}>
+          {isOptimizing
+            ? <ActivityIndicator size="small" color={COLORS.primary} />
+            : <Text style={styles.optimizeBtnText}>✨ AI Price Optimizer</Text>
+          }
+        </TouchableOpacity>
+
         {/* Menu Items */}
         <Text style={styles.sectionTitle}>MENU ITEMS</Text>
 
@@ -234,6 +272,17 @@ export default function MenuPricingScreen({ navigation }: any) {
                   keyboardType="decimal-pad"
                   placeholder="0"
                   placeholderTextColor={COLORS.muted}
+                />
+                <Text style={styles.editLabel}>RECIPE / INSTRUCTIONS (shown to staff)</Text>
+                <TextInput
+                  style={styles.recipeInput}
+                  value={editRecipe}
+                  onChangeText={setEditRecipe}
+                  placeholder="e.g. Boil 200ml water, add 1 tsp tea leaves, 100ml milk, 2 tsp sugar..."
+                  placeholderTextColor={COLORS.muted}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
                 />
                 <View style={styles.editActions}>
                   <TouchableOpacity style={styles.editCancelBtn} onPress={cancelEdit}>
@@ -303,10 +352,21 @@ export default function MenuPricingScreen({ navigation }: any) {
               placeholder="0"
               placeholderTextColor={COLORS.muted}
             />
+            <Text style={styles.editLabel}>RECIPE / INSTRUCTIONS (optional)</Text>
+            <TextInput
+              style={styles.recipeInput}
+              value={newRecipe}
+              onChangeText={setNewRecipe}
+              placeholder="How to prepare this item..."
+              placeholderTextColor={COLORS.muted}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
             <View style={styles.editActions}>
               <TouchableOpacity
                 style={styles.editCancelBtn}
-                onPress={() => { setShowAddForm(false); setNewName(''); setNewPrice(''); }}
+                onPress={() => { setShowAddForm(false); setNewName(''); setNewPrice(''); setNewRecipe(''); }}
               >
                 <Text style={styles.editCancelText}>Cancel</Text>
               </TouchableOpacity>
@@ -341,6 +401,66 @@ export default function MenuPricingScreen({ navigation }: any) {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Price Optimizer Modal */}
+      <Modal visible={showOptimizer} transparent animationType="slide" onRequestClose={() => setShowOptimizer(false)}>
+        <View style={styles.optimizerOverlay}>
+          <View style={styles.optimizerSheet}>
+            <View style={styles.optimizerHandle} />
+            <Text style={styles.optimizerTitle}>✨ AI Price Optimizer</Text>
+            <Text style={styles.optimizerSub}>Based on last 30 days of sales data</Text>
+            {isOptimizing ? (
+              <View style={{ padding: 40, alignItems: 'center' }}>
+                <ActivityIndicator size="large" color={COLORS.primary} />
+                <Text style={{ color: COLORS.muted, marginTop: 12, fontSize: FONT_SIZE.sm }}>Analyzing sales patterns…</Text>
+              </View>
+            ) : optimizations.length === 0 ? (
+              <View style={{ padding: 32, alignItems: 'center' }}>
+                <Text style={{ fontSize: 32 }}>✅</Text>
+                <Text style={{ color: COLORS.muted, marginTop: 8, textAlign: 'center' }}>All prices look optimal based on current sales data.</Text>
+              </View>
+            ) : (
+              <ScrollView style={{ maxHeight: 380 }}>
+                {optimizations.map((s) => {
+                  const isIncrease = s.suggestedPrice > s.currentPrice;
+                  const isDecrease = s.suggestedPrice < s.currentPrice;
+                  const isSame = s.suggestedPrice === s.currentPrice;
+                  return (
+                    <View key={s.itemKey} style={styles.optimizerRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.optimizerItemName}>{s.itemName}</Text>
+                        <Text style={styles.optimizerReason}>{s.reason}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                          <Text style={styles.optimizerOldPrice}>₹{s.currentPrice}</Text>
+                          <Text style={{ color: COLORS.muted }}>→</Text>
+                          <Text style={[styles.optimizerNewPrice, { color: isIncrease ? COLORS.success : isDecrease ? COLORS.danger : COLORS.muted }]}>
+                            ₹{s.suggestedPrice}
+                          </Text>
+                          {!isSame && (
+                            <View style={[styles.optimizerChangeBadge, { backgroundColor: isIncrease ? COLORS.successBg : COLORS.dangerBg }]}>
+                              <Text style={{ fontSize: 10, fontWeight: '700', color: isIncrease ? COLORS.success : COLORS.danger }}>
+                                {isIncrease ? '+' : ''}₹{s.suggestedPrice - s.currentPrice}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                      {!isSame && (
+                        <TouchableOpacity style={styles.optimizerApplyBtn} onPress={() => applyOptimization(s)}>
+                          <Text style={styles.optimizerApplyText}>Apply</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            )}
+            <TouchableOpacity style={styles.optimizerCloseBtn} onPress={() => setShowOptimizer(false)}>
+              <Text style={styles.optimizerCloseBtnText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -414,6 +534,11 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
     fontSize: FONT_SIZE.md, color: COLORS.black, minHeight: 48,
   },
+  recipeInput: {
+    borderWidth: 1, borderColor: COLORS.border, borderRadius: BORDER_RADIUS.sm,
+    backgroundColor: COLORS.surface, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
+    fontSize: FONT_SIZE.sm, color: COLORS.black, minHeight: 90, lineHeight: 20,
+  },
   editActions: { flexDirection: 'row', gap: SPACING.md, marginTop: SPACING.lg },
   editCancelBtn: {
     flex: 1, borderWidth: 1, borderColor: COLORS.border, borderRadius: BORDER_RADIUS.sm,
@@ -453,4 +578,46 @@ const styles = StyleSheet.create({
   previewItem: { fontSize: FONT_SIZE.md, color: COLORS.dark },
   previewPrice: { fontSize: FONT_SIZE.md, fontWeight: '700', color: COLORS.primary },
   previewEmpty: { fontSize: FONT_SIZE.sm, color: COLORS.muted, textAlign: 'center', paddingVertical: SPACING.lg },
+
+  optimizeBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.primaryBg, borderRadius: BORDER_RADIUS.md,
+    paddingVertical: SPACING.md, marginBottom: SPACING.md,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  optimizeBtnText: { fontSize: FONT_SIZE.sm, fontWeight: '800', color: COLORS.primary },
+
+  optimizerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  optimizerSheet: {
+    backgroundColor: COLORS.white, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingHorizontal: SPACING.xl, paddingBottom: 40, paddingTop: SPACING.md,
+  },
+  optimizerHandle: {
+    width: 40, height: 4, backgroundColor: COLORS.border, borderRadius: 2,
+    alignSelf: 'center', marginBottom: SPACING.lg,
+  },
+  optimizerTitle: { fontSize: FONT_SIZE.xl, fontWeight: '800', color: COLORS.black, marginBottom: 4 },
+  optimizerSub: { fontSize: FONT_SIZE.sm, color: COLORS.muted, marginBottom: SPACING.lg },
+  optimizerRow: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: SPACING.md,
+    borderBottomWidth: 1, borderBottomColor: COLORS.borderLight,
+  },
+  optimizerItemName: { fontSize: FONT_SIZE.md, fontWeight: '700', color: COLORS.black },
+  optimizerReason: { fontSize: 12, color: COLORS.muted, marginTop: 2, lineHeight: 16 },
+  optimizerOldPrice: { fontSize: FONT_SIZE.md, color: COLORS.muted, textDecorationLine: 'line-through' },
+  optimizerNewPrice: { fontSize: FONT_SIZE.md, fontWeight: '800' },
+  optimizerChangeBadge: {
+    borderRadius: BORDER_RADIUS.full, paddingHorizontal: 8, paddingVertical: 2,
+  },
+  optimizerApplyBtn: {
+    backgroundColor: COLORS.primary, borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, marginLeft: SPACING.md,
+  },
+  optimizerApplyText: { color: '#fff', fontWeight: '700', fontSize: FONT_SIZE.sm },
+  optimizerCloseBtn: {
+    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
+    paddingVertical: SPACING.md, alignItems: 'center', marginTop: SPACING.lg,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  optimizerCloseBtnText: { fontWeight: '700', color: COLORS.dark, fontSize: FONT_SIZE.md },
 });

@@ -73,6 +73,7 @@ app.use('/v1/attendance', require('./routes/attendance'));
 app.use('/v1/payroll', require('./routes/payroll'));
 app.use('/v1/audit-logs', require('./routes/auditLogs'));
 app.use('/v1/stall-config', require('./routes/stallConfig'));
+app.use('/v1/ai', require('./routes/ai'));
 
 // ─── 404 Handler ─────────────────────────────────────────────────────────────
 app.use('*', (req, res) =>

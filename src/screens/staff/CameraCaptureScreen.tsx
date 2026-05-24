@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
+  PermissionsAndroid, Platform,
 } from 'react-native';
 import { showAlert } from '../../components/AppAlert';
 import { launchCamera } from 'react-native-image-picker';
@@ -33,6 +34,22 @@ export default function CameraCaptureScreen({ navigation, route }: any) {
 
   const capturePhoto = async () => {
     haptics.medium();
+
+    if (Platform.OS === 'android') {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.CAMERA,
+        {
+          title: 'Camera Permission',
+          message: 'ChaistoOps needs camera access to capture report photos.',
+          buttonPositive: 'Allow',
+          buttonNegative: 'Deny',
+        }
+      );
+      if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+        showAlert('Camera Permission', 'Please allow camera access in Settings to capture photos.', [{ text: 'OK' }]);
+        return;
+      }
+    }
 
     try {
       const result = await launchCamera({
@@ -163,9 +180,9 @@ const styles = StyleSheet.create({
   iconCircle: {
     width: 100, height: 100, borderRadius: 50,
     backgroundColor: COLORS.primaryBg, alignItems: 'center', justifyContent: 'center',
-    marginBottom: SPACING.xl, borderWidth: 2, borderColor: COLORS.border,
+    marginBottom: SPACING.xl,
   },
-  icon: { fontSize: 48 },
+  icon: { fontSize: 48, textAlign: 'center', lineHeight: 64 },
   title: {
     fontSize: FONT_SIZE.xxl, fontWeight: '800', color: COLORS.black,
     marginBottom: SPACING.sm, textAlign: 'center',

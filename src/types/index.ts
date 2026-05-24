@@ -240,6 +240,7 @@ export interface MenuItem {
   active: boolean;
   sortOrder: number;
   isDefault?: boolean;
+  recipe?: string;
 }
 
 export interface StallConfig {
