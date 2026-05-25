@@ -4,7 +4,7 @@ import {
    TextInput, ActivityIndicator, Switch, Modal, Image,
 } from 'react-native';
 import { showAlert } from '../../components/AppAlert';
-import { launchCamera, launchImageLibrary, ImagePickerResponse, MediaType } from 'react-native-image-picker';
+import { launchImageLibrary, ImagePickerResponse, MediaType } from 'react-native-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
@@ -64,27 +64,10 @@ export default function SettingsScreen() {
 
   const handlePickPhoto = () => {
     haptics.selection();
-    showAlert({
-      title: t('changePhoto'),
-      type: 'sheet',
-      buttons: [
-        {
-          text: '📷  ' + t('takePhoto'),
-          onPress: () => launchCamera(
-            { mediaType: 'photo' as MediaType, quality: 0.7, saveToPhotos: false },
-            (res) => handlePickerResponse(res)
-          ),
-        },
-        {
-          text: '🖼  ' + t('chooseFromGallery'),
-          onPress: () => launchImageLibrary(
-            { mediaType: 'photo' as MediaType, quality: 0.7, selectionLimit: 1 },
-            (res) => handlePickerResponse(res)
-          ),
-        },
-        { text: t('cancel'), style: 'cancel' as const },
-      ],
-    });
+    launchImageLibrary(
+      { mediaType: 'photo' as MediaType, quality: 0.7, selectionLimit: 1 },
+      (res) => handlePickerResponse(res)
+    );
   };
 
   const handlePickerResponse = async (res: ImagePickerResponse) => {

@@ -1,8 +1,30 @@
 const express = require('express');
 const Notification = require('../models/Notification');
-const { authenticate } = require('../middleware/auth');
+const User = require('../models/User');
+const admin = require('firebase-admin');
+const { authenticate, adminOrModerator } = require('../middleware/auth');
 
 const router = express.Router();
+
+// POST /notifications/test — sends a test push to the calling user
+router.post('/test', ...adminOrModerator, async (req, res) => {
+  const { title = '🔔 Test Notification', body = 'Push notifications are working!' } = req.body;
+  try {
+    const user = await User.findById(req.user._id).select('fcmToken name');
+    if (!user?.fcmToken) {
+      return res.status(400).json({ error: 'No FCM token on your account. Open the app and log in first.' });
+    }
+    await admin.messaging().send({
+      token: user.fcmToken,
+      notification: { title, body },
+      android: { priority: 'high', notification: { sound: 'default', channelId: 'chaisto-ops-default' } },
+      apns: { payload: { aps: { sound: 'default', badge: 1 } } },
+    });
+    res.json({ success: true, sentTo: user.name, token: user.fcmToken.slice(0, 20) + '…' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // GET /notifications
 router.get('/', authenticate, async (req, res) => {
