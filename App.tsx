@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { StatusBar, LogBox } from 'react-native';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
@@ -17,10 +17,6 @@ LogBox.ignoreLogs(['Non-serializable values were found in the navigation state']
 fcmService.setupBackgroundHandler();
 
 export default function App() {
-  useEffect(() => {
-    // Register FCM token once the app mounts (user must be logged in for this to persist server-side)
-    fcmService.registerToken().catch(() => {});
-  }, []);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

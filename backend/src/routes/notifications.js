@@ -2,12 +2,18 @@ const express = require('express');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
 const admin = require('firebase-admin');
-const { authenticate, adminOrModerator } = require('../middleware/auth');
+const { authenticate } = require('../middleware/auth');
 
 const router = express.Router();
 
+// GET /notifications/debug-token — shows the FCM token stored for your account
+router.get('/debug-token', authenticate, async (req, res) => {
+  const user = await User.findById(req.user._id).select('name fcmToken');
+  res.json({ name: user.name, fcmToken: user.fcmToken || null, hasToken: !!user.fcmToken });
+});
+
 // POST /notifications/test — sends a test push to the calling user
-router.post('/test', ...adminOrModerator, async (req, res) => {
+router.post('/test', authenticate, async (req, res) => {
   const { title = '🔔 Test Notification', body = 'Push notifications are working!' } = req.body;
   try {
     const user = await User.findById(req.user._id).select('fcmToken name');

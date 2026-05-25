@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "473619358995",
+    "project_id": "chaisto",
+    "storage_bucket": "chaisto.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:473619358995:android:093977f188ead55511e6e6",
+        "android_client_info": {
+          "package_name": "com.zethyst.chaisto"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA2W2yZfKC01814nLvUCTREs2Bw3uBYPtY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

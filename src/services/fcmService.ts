@@ -50,7 +50,7 @@ export const fcmService = {
       try {
         await notificationService.updateFCMToken(token);
       } catch {
-        // Fails silently if backend isn't available — token will be registered next time
+        // Fails silently — token will be registered next launch
       }
     }
   },

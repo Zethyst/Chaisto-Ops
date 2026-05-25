@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../store';
 import { refreshSession } from '../store/slices/authSlice';
+import { fcmService } from '../services/fcmService';
 import { COLORS, FONT_SIZE } from '../constants';
 import { useLanguage } from '../i18n';
 
@@ -185,6 +186,12 @@ export default function AppNavigator() {
   useEffect(() => {
     dispatch(refreshSession());
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fcmService.registerToken().catch(() => {});
+    }
+  }, [isAuthenticated]);
 
   const getStack = () => {
     if (!isAuthenticated) return <AuthStack />;
