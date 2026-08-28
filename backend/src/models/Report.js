@@ -40,6 +40,8 @@ const reportSchema = new mongoose.Schema({
     regularCups: { type: Number, default: 0, min: 0 },
     specialCups: { type: Number, default: 0, min: 0 },
     kulhadCups: { type: Number, default: 0, min: 0 },
+    vegMomoPackets: { type: Number, default: 0, min: 0 },
+    paneerMomoPackets: { type: Number, default: 0, min: 0 },
     snacks: { type: Number, default: 0, min: 0 }, // ₹
   },
   payments: {
@@ -50,7 +52,6 @@ const reportSchema = new mongoose.Schema({
 
   photos: {
     cash: { type: String, required: true },
-    cartClosing: { type: String, required: true },
     stock: { type: String, required: true },
     milkPacket: { type: String, required: true },
   },
@@ -66,6 +67,7 @@ const reportSchema = new mongoose.Schema({
     revenuePerCup: Number,
     upiRatio: Number,
     cupsVsMilkDeviation: Number, // percentage
+    totalMomoPackets: Number,
   },
 
   flags: [flagSchema],
@@ -99,6 +101,7 @@ reportSchema.pre('save', function (next) {
   const milkUsed = (openingStock.milk + purchases.milk) - closingStock.milk;
   const expectedCups = milkUsed * CUPS_PER_LITRE;
   const totalCups = (sales.regularCups || 0) + (sales.specialCups || 0) + (sales.kulhadCups || 0);
+  const totalMomoPackets = (sales.vegMomoPackets || 0) + (sales.paneerMomoPackets || 0);
   const totalRevenue = (payments.upi || 0) + (payments.cash || 0);
   const revenuePerCup = totalCups > 0 ? totalRevenue / totalCups : 0;
   const upiRatio = totalRevenue > 0 ? payments.upi / totalRevenue : 0;
@@ -112,6 +115,7 @@ reportSchema.pre('save', function (next) {
     revenuePerCup,
     upiRatio,
     cupsVsMilkDeviation: cupsDeviation,
+    totalMomoPackets,
   };
 
   // Flag: milk vs cups mismatch >20%

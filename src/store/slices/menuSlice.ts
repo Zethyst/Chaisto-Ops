@@ -6,13 +6,20 @@ export const DEFAULT_MENU_ITEMS: MenuItem[] = [
   { key: 'regularChai', name: 'Regular Chai', price: 15, active: true, sortOrder: 0, isDefault: true },
   { key: 'specialChai', name: 'Special Chai', price: 25, active: true, sortOrder: 1, isDefault: true },
   { key: 'kulhadChai', name: 'Kulhad Chai', price: 20, active: true, sortOrder: 2, isDefault: true },
+  { key: 'vegMomo', name: 'Veg Momo', price: 40, active: true, sortOrder: 3, isDefault: true },
+  { key: 'paneerMomo', name: 'Paneer Momo', price: 60, active: true, sortOrder: 4, isDefault: true },
 ];
+
+// Momo menu item keys are sold by the packet, not the cup
+export const MOMO_ITEM_KEYS = ['vegMomo', 'paneerMomo'];
 
 // Map default item keys to DailyReport sales fields
 export const ITEM_KEY_TO_SALES_FIELD: Record<string, string> = {
   regularChai: 'regularCups',
   specialChai: 'specialCups',
   kulhadChai: 'kulhadCups',
+  vegMomo: 'vegMomoPackets',
+  paneerMomo: 'paneerMomoPackets',
 };
 
 export interface TallyData {

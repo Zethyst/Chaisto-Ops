@@ -74,8 +74,9 @@ export default function PayrollScreen() {
   };
 
   const totalPayroll = payroll.reduce((s, p) => s + p.totalPay, 0);
-  const totalIncentives = payroll.reduce((s, p) => s + p.cupsIncentive, 0);
+  const totalIncentives = payroll.reduce((s, p) => s + p.cupsIncentive + (p.momoIncentive || 0), 0);
   const totalCups = payroll.reduce((s, p) => s + p.totalCups, 0);
+  const totalMomoPackets = payroll.reduce((s, p) => s + (p.totalMomoPackets || 0), 0);
 
   if (loading) {
     return <View style={styles.center}><ActivityIndicator color={COLORS.primary} size="large" /></View>;
@@ -116,6 +117,7 @@ export default function PayrollScreen() {
           <SummaryItem label="Total Payout" value={`₹${totalPayroll.toLocaleString('en-IN')}`} color={COLORS.danger} />
           <SummaryItem label="Incentives" value={`₹${totalIncentives.toLocaleString('en-IN')}`} color={COLORS.success} />
           <SummaryItem label="Total Cups" value={String(totalCups)} color={COLORS.primary} />
+          <SummaryItem label="Total Momos" value={String(totalMomoPackets)} color={COLORS.primary} />
         </View>
 
         {/* Staff cards */}
@@ -142,12 +144,14 @@ export default function PayrollScreen() {
               <View style={styles.payBreakdown}>
                 <PayRow label="Base Salary" value={p.baseSalary} />
                 <PayRow label={`Cup Incentive (${p.totalCups} cups × ₹1)`} value={p.cupsIncentive} color={COLORS.success} />
+                <PayRow label={`Momo Incentive (${p.totalMomoPackets || 0} packets × ₹5)`} value={p.momoIncentive || 0} color={COLORS.success} />
                 <View style={styles.payDivider} />
                 <PayRow label="Total Payout" value={p.totalPay} bold color={COLORS.danger} />
               </View>
 
               <View style={styles.statsRow}>
                 <StatChip icon="☕" label={`${p.totalCups} cups`} />
+                <StatChip icon="🥟" label={`${p.totalMomoPackets || 0} momos`} />
                 <StatChip icon="📋" label={`${p.reportCount} reports`} />
                 <StatChip icon="💰" label={`₹${p.totalRevenue.toLocaleString('en-IN')} rev`} />
                 {isAdmin && (

@@ -14,14 +14,12 @@ import { haptics } from '../../utils/haptics';
 
 const CATEGORY_LABELS: Record<string, string> = {
   cash: 'Cash Photo',
-  cartClosing: 'Cart Closing Photo',
   stock: 'Stock Photo',
   milkPacket: 'Milk Packet Photo',
 };
 
 const CATEGORY_HINTS: Record<string, string> = {
   cash: 'Capture the cash tray/drawer clearly',
-  cartClosing: 'Show the cart is locked and closed',
   stock: 'All remaining stock items in frame',
   milkPacket: 'Milk packets with quantities visible',
 };

@@ -192,13 +192,22 @@ router.post('/price-optimize', ...adminOrModerator, async (req, res) => {
       regularCups: reports.reduce((s, r) => s + (r.sales?.regularCups || 0), 0),
       specialCups: reports.reduce((s, r) => s + (r.sales?.specialCups || 0), 0),
       kulhadCups: reports.reduce((s, r) => s + (r.sales?.kulhadCups || 0), 0),
+      vegMomoPackets: reports.reduce((s, r) => s + (r.sales?.vegMomoPackets || 0), 0),
+      paneerMomoPackets: reports.reduce((s, r) => s + (r.sales?.paneerMomoPackets || 0), 0),
     };
-    const FIELD_MAP = { regularChai: 'regularCups', specialChai: 'specialCups', kulhadChai: 'kulhadCups' };
+    const FIELD_MAP = {
+      regularChai: 'regularCups',
+      specialChai: 'specialCups',
+      kulhadChai: 'kulhadCups',
+      vegMomo: 'vegMomoPackets',
+      paneerMomo: 'paneerMomoPackets',
+    };
 
     const itemLines = menuItems.map(item => {
       const field = FIELD_MAP[item.key];
-      const cups = field ? salesAgg[field] : 0;
-      return `- ${item.name}: ${cups} cups sold in last 30 days at ₹${item.price} each`;
+      const qty = field ? salesAgg[field] : 0;
+      const unit = field?.includes('Momo') ? 'packets' : 'cups';
+      return `- ${item.name}: ${qty} ${unit} sold in last 30 days at ₹${item.price} each`;
     }).join('\n');
 
     const prompt = `Chai stall menu items with sales data (last 30 days):

@@ -181,6 +181,10 @@ export default function StaffDashboard({ navigation }: any) {
                 <Text style={[styles.incomeBreakItem, { color: COLORS.success }]}>
                   {t('cupBonus')}: ₹{(payroll?.cupsIncentive || 0).toLocaleString('en-IN')}
                 </Text>
+                <Text style={styles.incomePlus}> + </Text>
+                <Text style={[styles.incomeBreakItem, { color: COLORS.success }]}>
+                  {t('momoBonus')}: ₹{(payroll?.momoIncentive || 0).toLocaleString('en-IN')}
+                </Text>
               </View>
             </>
           )}
@@ -222,6 +226,7 @@ export default function StaffDashboard({ navigation }: any) {
           <Text style={styles.summaryTitle}>{t('todaySummary')}</Text>
           <View style={styles.summaryGrid}>
             <SummaryItem label={t('cupsSold')} value={String((todayReport.sales?.regularCups || 0) + (todayReport.sales?.specialCups || 0))} icon="☕" />
+            <SummaryItem label={t('momoSold')} value={String((todayReport.sales?.vegMomoPackets || 0) + (todayReport.sales?.paneerMomoPackets || 0))} icon="🥟" />
             <SummaryItem label={t('revenue')} value={`₹${todayReport.computed?.totalRevenue || 0}`} icon="💰" />
             <SummaryItem label="UPI" value={`₹${todayReport.payments?.upi || 0}`} icon="📱" />
             <SummaryItem label="Cash" value={`₹${todayReport.payments?.cash || 0}`} icon="💵" />

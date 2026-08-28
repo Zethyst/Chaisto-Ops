@@ -14,7 +14,6 @@ router.post('/', ...allRoles, [
   body('stallId').notEmpty().withMessage('stallId required'),
   body('date').matches(/^\d{4}-\d{2}-\d{2}$/).withMessage('Date must be YYYY-MM-DD'),
   body('photos.cash').notEmpty().withMessage('Cash photo required'),
-  body('photos.cartClosing').notEmpty().withMessage('Cart closing photo required'),
   body('photos.stock').notEmpty().withMessage('Stock photo required'),
   body('photos.milkPacket').notEmpty().withMessage('Milk packet photo required'),
   body('location.latitude').isFloat().withMessage('Valid latitude required'),
@@ -224,6 +223,7 @@ router.get('/analytics/summary', ...adminOrModerator, async (req, res) => {
         $group: {
           _id: null,
           totalCups: { $sum: { $add: ['$sales.regularCups', '$sales.specialCups'] } },
+          totalMomoPackets: { $sum: { $add: ['$sales.vegMomoPackets', '$sales.paneerMomoPackets'] } },
           totalRevenue: { $sum: '$computed.totalRevenue' },
           totalUPI: { $sum: '$payments.upi' },
           totalCash: { $sum: '$payments.cash' },
@@ -239,6 +239,7 @@ router.get('/analytics/summary', ...adminOrModerator, async (req, res) => {
         $group: {
           _id: '$date',
           cups: { $sum: { $add: ['$sales.regularCups', '$sales.specialCups'] } },
+          momoPackets: { $sum: { $add: ['$sales.vegMomoPackets', '$sales.paneerMomoPackets'] } },
           revenue: { $sum: '$computed.totalRevenue' },
         },
       },
@@ -252,6 +253,7 @@ router.get('/analytics/summary', ...adminOrModerator, async (req, res) => {
           _id: '$staffId',
           name: { $first: '$staffName' },
           cups: { $sum: { $add: ['$sales.regularCups', '$sales.specialCups'] } },
+          momoPackets: { $sum: { $add: ['$sales.vegMomoPackets', '$sales.paneerMomoPackets'] } },
           revenue: { $sum: '$computed.totalRevenue' },
           reports: { $sum: 1 },
         },
@@ -261,7 +263,7 @@ router.get('/analytics/summary', ...adminOrModerator, async (req, res) => {
     ]);
 
     res.json({
-      summary: summary || { totalCups: 0, totalRevenue: 0, totalUPI: 0, totalCash: 0, reportCount: 0, flaggedCount: 0 },
+      summary: summary || { totalCups: 0, totalMomoPackets: 0, totalRevenue: 0, totalUPI: 0, totalCash: 0, reportCount: 0, flaggedCount: 0 },
       daily,
       staffPerformance: staffPerf,
     });

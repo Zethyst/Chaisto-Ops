@@ -137,10 +137,10 @@ const reportSlice = createSlice({
         date: new Date().toISOString().split('T')[0],
         status: 'draft',
         flags: [],
-        photos: { cash: '', cartClosing: '', stock: '', milkPacket: '' },
+        photos: { cash: '', stock: '', milkPacket: '' },
         openingStock: { milk: 0, sugar: 0, teaLeaves: 0, cups: 0, kulhadCups: 0 },
         purchases: { milk: 0, snacks: 0 },
-        sales: { regularCups: 0, specialCups: 0, kulhadCups: 0, snacks: 0 },
+        sales: { regularCups: 0, specialCups: 0, kulhadCups: 0, vegMomoPackets: 0, paneerMomoPackets: 0, snacks: 0 },
         payments: { upi: 0, cash: 0 },
         closingStock: { milk: 0, sugar: 0, teaLeaves: 0, cups: 0, kulhadCups: 0 },
       };

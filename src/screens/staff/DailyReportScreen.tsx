@@ -12,6 +12,7 @@ import {
 
 import { deviceService } from '../../services/deviceService';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS, REPORT_STEPS, PHOTO_CATEGORIES } from '../../constants';
+import { ITEM_KEY_TO_SALES_FIELD, MOMO_ITEM_KEYS } from '../../store/slices/menuSlice';
 import { DailyReport } from '../../types';
 import { haptics } from '../../utils/haptics';
 
@@ -145,7 +146,7 @@ export default function DailyReportScreen({ navigation }: any) {
               <Text style={styles.nextBtnText}>Continue →</Text>
             </TouchableOpacity>
             {isNextDisabled && (
-              <Text style={styles.photoLockHint}>Capture all 4 photos to continue</Text>
+              <Text style={styles.photoLockHint}>Capture all {PHOTO_CATEGORIES.length} photos to continue</Text>
             )}
           </>
         ) : (
@@ -244,15 +245,8 @@ function SalesStep({ draft, dispatch }: any) {
   const update = (key: string, val: number) =>
     dispatch(updateDraftSection({ section: 'sales', data: { ...s, [key]: val } }));
 
-  // Map menu item keys to sales field names
-  const FIELD_MAP: Record<string, string> = {
-    regularChai: 'regularCups',
-    specialChai: 'specialCups',
-    kulhadChai: 'kulhadCups',
-  };
-
   const estimatedRevenue = activeItems.reduce((sum, item) => {
-    const field = FIELD_MAP[item.key];
+    const field = ITEM_KEY_TO_SALES_FIELD[item.key];
     const count = field ? (s[field] || 0) : 0;
     return sum + count * item.price;
   }, 0);
@@ -264,14 +258,15 @@ function SalesStep({ draft, dispatch }: any) {
   return (
     <StepCard title="☕ Sales Entry">
       {activeItems.map((item) => {
-        const field = FIELD_MAP[item.key] || item.key;
+        const field = ITEM_KEY_TO_SALES_FIELD[item.key] || item.key;
+        const unit = MOMO_ITEM_KEYS.includes(item.key) ? 'packets' : 'cups';
         return (
           <NumberField
             key={item.key}
             label={`${item.name}`}
             value={s[field] || 0}
             onChange={(v: number) => update(field, v)}
-            unit="cups"
+            unit={unit}
           />
         );
       })}
@@ -340,7 +335,7 @@ function PhotosStep({ draft, navigation }: any) {
   return (
     <View>
       <Text style={stepStyles.photosTitle}>📸 Required Photos</Text>
-      <Text style={stepStyles.photosNote}>You must capture all 4 photos using the camera below. Gallery uploads are disabled.</Text>
+      <Text style={stepStyles.photosNote}>You must capture all {PHOTO_CATEGORIES.length} photos using the camera below. Gallery uploads are disabled.</Text>
       {PHOTO_CATEGORIES.map((cat) => {
         const captured = !!photos[cat.key];
         return (
@@ -366,6 +361,7 @@ function PhotosStep({ draft, navigation }: any) {
 
 function ReviewStep({ draft }: any) {
   const cups = (draft.sales?.regularCups || 0) + (draft.sales?.specialCups || 0) + (draft.sales?.kulhadCups || 0);
+  const momoPackets = (draft.sales?.vegMomoPackets || 0) + (draft.sales?.paneerMomoPackets || 0);
   const revenue = (draft.payments?.upi || 0) + (draft.payments?.cash || 0);
   const flags = draft.flags || [];
 
@@ -383,11 +379,12 @@ function ReviewStep({ draft }: any) {
       )}
       <View style={stepStyles.reviewCard}>
         <ReviewRow label="Cups sold" value={`${cups} cups`} />
+        <ReviewRow label="Momo packets sold" value={`${momoPackets} packets`} />
         <ReviewRow label="Total revenue" value={`₹${revenue}`} />
         <ReviewRow label="UPI" value={`₹${draft.payments?.upi || 0}`} />
         <ReviewRow label="Cash" value={`₹${draft.payments?.cash || 0}`} />
         <ReviewRow label="Milk used" value={`${draft.computed?.milkUsed?.toFixed(1) || 0}L`} />
-        <ReviewRow label="Photos" value={`${Object.values(draft.photos || {}).filter(Boolean).length}/4`} />
+        <ReviewRow label="Photos" value={`${Object.values(draft.photos || {}).filter(Boolean).length}/${PHOTO_CATEGORIES.length}`} />
       </View>
       <View style={stepStyles.lockNote}>
         <Text style={stepStyles.lockText}>🔒 Report is locked after submission. Ensure all entries are correct.</Text>

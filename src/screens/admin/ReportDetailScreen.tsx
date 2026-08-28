@@ -69,6 +69,7 @@ export default function ReportDetailScreen({ route, navigation }: any) {
   }
 
   const totalCups = (report.sales?.regularCups || 0) + (report.sales?.specialCups || 0) + (report.sales?.kulhadCups || 0);
+  const totalMomoPackets = (report.sales?.vegMomoPackets || 0) + (report.sales?.paneerMomoPackets || 0);
   const totalRevenue = (report.payments?.upi || 0) + (report.payments?.cash || 0);
   const upiPct = totalRevenue > 0 ? Math.round((report.payments?.upi / totalRevenue) * 100) : 0;
 
@@ -77,7 +78,6 @@ export default function ReportDetailScreen({ route, navigation }: any) {
 
   const PHOTO_LABELS: Record<string, string> = {
     cash: 'Cash Tray',
-    cartClosing: 'Cart Closing',
     stock: 'Stock',
     milkPacket: 'Milk Packet',
   };
@@ -103,6 +103,7 @@ export default function ReportDetailScreen({ route, navigation }: any) {
       {/* Summary KPIs */}
       <View style={styles.kpiRow}>
         <MiniKpi label="Cups" value={String(totalCups)} icon="☕" color={COLORS.primary} />
+        <MiniKpi label="Momos" value={String(totalMomoPackets)} icon="🥟" color={COLORS.primary} />
         <MiniKpi label="Revenue" value={`₹${totalRevenue}`} icon="💰" color={COLORS.success} />
         <MiniKpi label="UPI" value={`${upiPct}%`} icon="📱" color={COLORS.info} />
         <MiniKpi label="Flags" value={String(report.flags?.length || 0)} icon="🚩" color={COLORS.danger} />
@@ -148,8 +149,11 @@ export default function ReportDetailScreen({ route, navigation }: any) {
         <DataRow label="Regular Chai" value={`${report.sales?.regularCups || 0} cups`} />
         <DataRow label="Special Chai" value={`${report.sales?.specialCups || 0} cups`} />
         <DataRow label="Kulhad Chai" value={`${report.sales?.kulhadCups || 0} cups`} />
+        <DataRow label="Veg Momo" value={`${report.sales?.vegMomoPackets || 0} packets`} />
+        <DataRow label="Paneer Momo" value={`${report.sales?.paneerMomoPackets || 0} packets`} />
         <DataRow label="Snack Sales" value={`₹${report.sales?.snacks || 0}`} />
         <DataRow label="Total Cups" value={`${totalCups} cups`} bold />
+        <DataRow label="Total Momo Packets" value={`${totalMomoPackets} packets`} bold />
         <DataRow label="Est. Revenue" value={`₹${report.computed?.totalRevenue || 0}`} bold />
       </Section>
 

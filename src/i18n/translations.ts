@@ -37,6 +37,7 @@ export const translations = {
     startDailyReportSub: 'Step-by-step · 7 minutes · Required daily',
     todaySummary: "Today's Summary",
     cupsSold: 'Cups Sold',
+    momoSold: 'Momo Packets Sold',
     revenue: 'Revenue',
     flagsRaised: 'flag(s) raised — admin will review',
 
@@ -67,6 +68,8 @@ export const translations = {
     baseSalary: 'Base salary',
     cupBonus: 'Cup bonus',
     cups: 'cups',
+    momoBonus: 'Momo bonus',
+    packets: 'packets',
     totalPay: 'Total',
     perCup: '₹1 per cup',
 
@@ -215,6 +218,7 @@ export const translations = {
     startDailyReportSub: 'चरण-दर-चरण · 7 मिनट · रोज़ जरूरी',
     todaySummary: 'आज का सारांश',
     cupsSold: 'कप बिके',
+    momoSold: 'मोमो पैकेट बिके',
     revenue: 'कमाई',
     flagsRaised: 'संदिग्ध गतिविधि — एडमिन जांच करेगा',
 
@@ -245,6 +249,8 @@ export const translations = {
     baseSalary: 'बेस सैलरी',
     cupBonus: 'कप बोनस',
     cups: 'कप',
+    momoBonus: 'मोमो बोनस',
+    packets: 'पैकेट',
     totalPay: 'कुल',
     perCup: '₹1 प्रति कप',
 

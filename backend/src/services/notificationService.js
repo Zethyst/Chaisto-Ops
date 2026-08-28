@@ -79,8 +79,10 @@ async function saveAndPushToRole(role, type, title, body, data = {}) {
 const notificationService = {
   notifyAdminReportSubmitted: async (report, staffName) => {
     const cups = (report.sales?.regularCups || 0) + (report.sales?.specialCups || 0);
+    const momoPackets = (report.sales?.vegMomoPackets || 0) + (report.sales?.paneerMomoPackets || 0);
+    const momoText = momoPackets > 0 ? `, ${momoPackets} momo packets` : '';
     const title = '📋 Report Submitted';
-    const body = `${staffName} submitted today's report — ${cups} cups, ₹${Math.round(report.computed?.totalRevenue || 0)}`;
+    const body = `${staffName} submitted today's report — ${cups} cups${momoText}, ₹${Math.round(report.computed?.totalRevenue || 0)}`;
     const data = { type: 'report_submitted', reportId: report._id.toString() };
     await saveAndPushToRole('admin', 'report_submitted', title, body, data);
     await saveAndPushToRole('moderator', 'report_submitted', title, body, data);

@@ -14,14 +14,15 @@ const chartW = width - SPACING.xl * 2 - 8;
 interface AnalyticsData {
   summary: {
     totalCups: number;
+    totalMomoPackets: number;
     totalRevenue: number;
     totalUPI: number;
     totalCash: number;
     reportCount: number;
     flaggedCount: number;
   };
-  daily: { _id: string; cups: number; revenue: number }[];
-  staffPerformance: { _id: string; name: string; cups: number; revenue: number; reports: number }[];
+  daily: { _id: string; cups: number; momoPackets: number; revenue: number }[];
+  staffPerformance: { _id: string; name: string; cups: number; momoPackets: number; revenue: number; reports: number }[];
 }
 
 const chartConfig = {
@@ -115,6 +116,12 @@ export default function AnalyticsScreen() {
           color={COLORS.primary}
         />
         <KpiCard
+          label="Momo Packets" icon="🥟"
+          value={String(data?.summary.totalMomoPackets ?? 0)}
+          sub={`${data?.summary.reportCount ?? 0} reports`}
+          color={COLORS.primary}
+        />
+        <KpiCard
           label="Revenue" icon="💰"
           value={`₹${Math.round(data?.summary.totalRevenue ?? 0).toLocaleString('en-IN')}`}
           sub={`₹${Math.round((data?.summary.totalRevenue ?? 0) / Math.max(data?.summary.reportCount ?? 1, 1))} avg`}
@@ -186,7 +193,7 @@ export default function AnalyticsScreen() {
                 </Text>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.staffName}>{staff.name}</Text>
-                  <Text style={styles.staffSub}>{staff.cups} cups · {staff.reports} reports</Text>
+                  <Text style={styles.staffSub}>{staff.cups} cups · {staff.momoPackets || 0} momos · {staff.reports} reports</Text>
                 </View>
                 <Text style={styles.staffRevenue}>₹{Math.round(staff.revenue).toLocaleString('en-IN')}</Text>
               </View>

@@ -73,6 +73,8 @@ export interface DailyReport {
     regularCups: number;
     specialCups: number;
     kulhadCups: number;
+    vegMomoPackets: number;
+    paneerMomoPackets: number;
     snacks: number;      // ₹
   };
 
@@ -91,7 +93,6 @@ export interface DailyReport {
 
   photos: {
     cash: string;
-    cartClosing: string;
     stock: string;
     milkPacket: string;
   };
@@ -107,6 +108,7 @@ export interface DailyReport {
     milkUsed: number;
     revenuePerCup: number;
     upiRatio: number;
+    totalMomoPackets?: number;
   };
 
   flags: SuspicionFlag[];
@@ -128,12 +130,13 @@ export interface PhotoCapture {
   longitude: number;
   deviceId: string;
   stallName: string;
-  category: 'cash' | 'cart_closing' | 'stock' | 'milk_packet';
+  category: 'cash' | 'stock' | 'milk_packet';
   watermarked: boolean;
 }
 
 export interface AnalyticsSummary {
   totalCups: number;
+  totalMomoPackets?: number;
   totalRevenue: number;
   upiRevenue: number;
   cashRevenue: number;
@@ -208,6 +211,8 @@ export interface PayrollSummary {
   baseSalary: number;
   totalCups: number;
   cupsIncentive: number;
+  totalMomoPackets?: number;
+  momoIncentive?: number;
   totalRevenue: number;
   reportCount: number;
   totalPay: number;

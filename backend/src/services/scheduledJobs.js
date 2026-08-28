@@ -57,6 +57,7 @@ const scheduleJobs = () => {
           $group: {
             _id: null,
             totalCups: { $sum: { $add: ['$sales.regularCups', '$sales.specialCups'] } },
+            totalMomoPackets: { $sum: { $add: ['$sales.vegMomoPackets', '$sales.paneerMomoPackets'] } },
             totalRevenue: { $sum: '$computed.totalRevenue' },
             flagCount: { $sum: { $cond: [{ $gt: [{ $size: '$flags' }, 0] }, 1, 0] } },
           },
@@ -66,7 +67,7 @@ const scheduleJobs = () => {
       if (reports) {
         const { notificationService: ns } = require('./notificationService');
         // Custom summary notification would go here
-        console.log(`[CRON] Yesterday summary: ${reports.totalCups} cups, ₹${Math.round(reports.totalRevenue)}, ${reports.flagCount} flags`);
+        console.log(`[CRON] Yesterday summary: ${reports.totalCups} cups, ${reports.totalMomoPackets} momo packets, ₹${Math.round(reports.totalRevenue)}, ${reports.flagCount} flags`);
       }
     } catch (err) {
       console.error('[CRON] Morning summary error:', err.message);

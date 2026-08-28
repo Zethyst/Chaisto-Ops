@@ -27,6 +27,7 @@ router.get('/me', ...allRoles, async (req, res) => {
         $group: {
           _id: null,
           totalCups: { $sum: { $add: ['$sales.regularCups', '$sales.specialCups'] } },
+          totalMomoPackets: { $sum: { $add: ['$sales.vegMomoPackets', '$sales.paneerMomoPackets'] } },
           totalRevenue: { $sum: '$computed.totalRevenue' },
           reportCount: { $sum: 1 },
         },
@@ -46,6 +47,8 @@ router.get('/me', ...allRoles, async (req, res) => {
     const baseSalary = user?.monthlySalary || 0;
     const totalCups = cupAgg?.totalCups || 0;
     const cupsIncentive = totalCups * 1; // ₹1 per cup
+    const totalMomoPackets = cupAgg?.totalMomoPackets || 0;
+    const momoIncentive = totalMomoPackets * 5; // ₹5 per momo packet
 
     res.json({
       staffId: req.user._id,
@@ -54,9 +57,11 @@ router.get('/me', ...allRoles, async (req, res) => {
       baseSalary,
       totalCups,
       cupsIncentive,
+      totalMomoPackets,
+      momoIncentive,
       totalRevenue: cupAgg?.totalRevenue || 0,
       reportCount: cupAgg?.reportCount || 0,
-      totalPay: baseSalary + cupsIncentive,
+      totalPay: baseSalary + cupsIncentive + momoIncentive,
       attendance: { presentDays, halfdayDays, leaveDays, absentDays },
     });
   } catch (err) {
@@ -88,6 +93,7 @@ router.get('/', ...adminOrModerator, async (req, res) => {
         $group: {
           _id: '$staffId',
           totalCups: { $sum: { $add: ['$sales.regularCups', '$sales.specialCups'] } },
+          totalMomoPackets: { $sum: { $add: ['$sales.vegMomoPackets', '$sales.paneerMomoPackets'] } },
           totalRevenue: { $sum: '$computed.totalRevenue' },
           reportCount: { $sum: 1 },
         },
@@ -98,9 +104,10 @@ router.get('/', ...adminOrModerator, async (req, res) => {
     cupAggs.forEach((a) => { cupsMap[a._id.toString()] = a; });
 
     const payroll = staffList.map((s) => {
-      const data = cupsMap[s._id.toString()] || { totalCups: 0, totalRevenue: 0, reportCount: 0 };
+      const data = cupsMap[s._id.toString()] || { totalCups: 0, totalMomoPackets: 0, totalRevenue: 0, reportCount: 0 };
       const baseSalary = s.monthlySalary || 0;
       const cupsIncentive = data.totalCups * 1;
+      const momoIncentive = (data.totalMomoPackets || 0) * 5;
       return {
         staffId: s._id,
         staffName: s.name,
@@ -108,9 +115,11 @@ router.get('/', ...adminOrModerator, async (req, res) => {
         baseSalary,
         totalCups: data.totalCups,
         cupsIncentive,
+        totalMomoPackets: data.totalMomoPackets || 0,
+        momoIncentive,
         totalRevenue: data.totalRevenue,
         reportCount: data.reportCount,
-        totalPay: baseSalary + cupsIncentive,
+        totalPay: baseSalary + cupsIncentive + momoIncentive,
       };
     });
 
