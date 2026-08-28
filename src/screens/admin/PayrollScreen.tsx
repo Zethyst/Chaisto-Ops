@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
    ActivityIndicator, RefreshControl, TextInput, Modal,
+   Keyboard, TouchableWithoutFeedback, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { showAlert } from '../../components/AppAlert';
 import { useSelector } from 'react-redux';
@@ -165,31 +166,35 @@ export default function PayrollScreen() {
         )}
       </ScrollView>
 
-      <Modal visible={salaryModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Set Base Salary</Text>
-            <Text style={styles.modalSub}>{selectedStaff?.staffName}</Text>
-            <Text style={styles.fieldLabel}>Monthly Base Salary (₹)</Text>
-            <TextInput
-              style={styles.input}
-              value={salaryInput}
-              onChangeText={setSalaryInput}
-              keyboardType="numeric"
-              placeholder="e.g. 8000"
-              placeholderTextColor={COLORS.muted}
-            />
-            <Text style={styles.hint}>Cup incentive (₹1/cup) is added automatically from report data.</Text>
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setSalaryModal(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.saveBtn, savingSalary && { opacity: 0.6 }]} onPress={handleSaveSalary} disabled={savingSalary}>
-                {savingSalary ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>Save</Text>}
-              </TouchableOpacity>
+      <Modal visible={salaryModal} animationType="slide" transparent onRequestClose={() => setSalaryModal(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalCard}>
+                <Text style={styles.modalTitle}>Set Base Salary</Text>
+                <Text style={styles.modalSub}>{selectedStaff?.staffName}</Text>
+                <Text style={styles.fieldLabel}>Monthly Base Salary (₹)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={salaryInput}
+                  onChangeText={setSalaryInput}
+                  keyboardType="numeric"
+                  placeholder="e.g. 8000"
+                  placeholderTextColor={COLORS.muted}
+                />
+                <Text style={styles.hint}>Cup and momo incentives are added automatically from report data.</Text>
+                <View style={styles.modalActions}>
+                  <TouchableOpacity style={styles.cancelBtn} onPress={() => setSalaryModal(false)}>
+                    <Text style={styles.cancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.saveBtn, savingSalary && { opacity: 0.6 }]} onPress={handleSaveSalary} disabled={savingSalary}>
+                    {savingSalary ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>Save</Text>}
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
-          </View>
-        </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

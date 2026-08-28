@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
    TextInput, ActivityIndicator, Switch, Modal, Image,
+   Keyboard, TouchableWithoutFeedback, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { showAlert } from '../../components/AppAlert';
 import { launchImageLibrary, ImagePickerResponse, MediaType } from 'react-native-image-picker';
@@ -333,6 +334,8 @@ export default function SettingsScreen() {
 
       {/* ── Edit Profile Modal ─────────────────────────────────────────────── */}
       <Modal visible={showEditProfile} animationType="slide" transparent onRequestClose={() => setShowEditProfile(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
@@ -381,6 +384,8 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           </View>
         </View>
+        </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
 
     </ScrollView>

@@ -28,6 +28,7 @@ const stallConfigSchema = new mongoose.Schema({
   missingReportAlertHour: { type: Number, default: 21 },
   // Payroll
   cupsIncentivePerCup: { type: Number, default: 1 },
+  momoIncentivePerPacket: { type: Number, default: 5 },
   // Menu & pricing
   menuItems: { type: [menuItemSchema], default: DEFAULT_MENU_ITEMS },
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

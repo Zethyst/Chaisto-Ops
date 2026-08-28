@@ -173,7 +173,7 @@ export interface Expense {
 }
 
 export interface WastageItem {
-  item: 'milk' | 'sugar' | 'teaLeaves' | 'cups' | 'other';
+  item: 'milk' | 'sugar' | 'teaLeaves' | 'cups' | 'momo' | 'other';
   quantity: number;
   unit: string;
   reason: 'expired' | 'spilled' | 'unsold' | 'damaged' | 'other';
@@ -256,6 +256,7 @@ export interface StallConfig {
   locationRadiusMeters: number;
   missingReportAlertHour: number;
   cupsIncentivePerCup: number;
+  momoIncentivePerPacket: number;
   menuItems?: MenuItem[];
   updatedByName?: string;
   updatedAt?: string;

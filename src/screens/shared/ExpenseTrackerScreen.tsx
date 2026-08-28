@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput,  ActivityIndicator, RefreshControl, Modal,
+  Keyboard, TouchableWithoutFeedback, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { showAlert } from '../../components/AppAlert';
 import { useSelector } from 'react-redux';
@@ -175,7 +176,9 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
       </ScrollView>
 
       {/* Log expense modal */}
-      <Modal visible={showForm} animationType="slide" transparent>
+      <Modal visible={showForm} animationType="slide" transparent onRequestClose={() => setShowForm(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Log Expense</Text>
@@ -223,6 +226,8 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
             </View>
           </View>
         </View>
+        </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

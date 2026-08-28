@@ -10,7 +10,7 @@ import {
   ensureFreshTally, incrementTally, decrementTally,
   incrementMilkPackets, decrementMilkPackets,
   setTallyUpi, setTallyCash, setTallyNotes, resetTally,
-  fetchMenuConfig,
+  fetchMenuConfig, MOMO_ITEM_KEYS,
 } from '../../store/slices/menuSlice';
 import { startNewReport, preFillFromTally } from '../../store/slices/reportSlice';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
@@ -150,7 +150,12 @@ export default function TallyScreen({ navigation }: any) {
 
   const activeItems = items.filter(i => i.active).sort((a, b) => a.sortOrder - b.sortOrder);
 
-  const totalCups = activeItems.reduce((sum, item) => sum + (tally.counters[item.key] || 0), 0);
+  const totalCups = activeItems
+    .filter(item => !MOMO_ITEM_KEYS.includes(item.key))
+    .reduce((sum, item) => sum + (tally.counters[item.key] || 0), 0);
+  const totalMomoPackets = activeItems
+    .filter(item => MOMO_ITEM_KEYS.includes(item.key))
+    .reduce((sum, item) => sum + (tally.counters[item.key] || 0), 0);
   const totalRevenue = activeItems.reduce((sum, item) => {
     return sum + (tally.counters[item.key] || 0) * item.price;
   }, 0);
@@ -162,7 +167,7 @@ export default function TallyScreen({ navigation }: any) {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
 
-  const hasTallyData = totalCups > 0 || tally.upi > 0 || tally.cash > 0 || tally.milkPackets > 0;
+  const hasTallyData = totalCups > 0 || totalMomoPackets > 0 || tally.upi > 0 || tally.cash > 0 || tally.milkPackets > 0;
 
   const handleReset = () => {
     haptics.heavy();
@@ -235,6 +240,11 @@ export default function TallyScreen({ navigation }: any) {
         </View>
         <View style={styles.totalDivider} />
         <View style={styles.totalItem}>
+          <Text style={styles.totalValue}>{totalMomoPackets}</Text>
+          <Text style={styles.totalLabel}>{t('tallyMomosLabel')}</Text>
+        </View>
+        <View style={styles.totalDivider} />
+        <View style={styles.totalItem}>
           <Text style={[styles.totalValue, { color: COLORS.success }]}>
             ₹{totalRevenue.toLocaleString('en-IN')}
           </Text>
@@ -266,7 +276,7 @@ export default function TallyScreen({ navigation }: any) {
             key={item.key}
             item={item}
             count={tally.counters[item.key] || 0}
-            perCupLabel={t('tallyPerCup')}
+            perCupLabel={MOMO_ITEM_KEYS.includes(item.key) ? t('tallyPerPacket') : t('tallyPerCup')}
             onPressRecipe={() => setRecipeModal({ name: item.name, recipe: item.recipe || '' })}
             onIncrement={() => {
               haptics.selection();
@@ -440,8 +450,11 @@ export default function TallyScreen({ navigation }: any) {
         {(totalRevenue > 0 || milkCost > 0) && (
           <View style={styles.ctaSummary}>
             <Text style={styles.ctaSummaryText}>
-              {totalCups > 0 ? `${totalCups} cups · ₹${totalRevenue} est` : ''}
-              {totalCups > 0 && milkCost > 0 ? ' · ' : ''}
+              {totalCups > 0 ? `${totalCups} cups` : ''}
+              {totalCups > 0 && totalMomoPackets > 0 ? ' · ' : ''}
+              {totalMomoPackets > 0 ? `${totalMomoPackets} momos` : ''}
+              {(totalCups > 0 || totalMomoPackets > 0) ? ` · ₹${totalRevenue} est` : ''}
+              {(totalCups > 0 || totalMomoPackets > 0) && milkCost > 0 ? ' · ' : ''}
               {milkCost > 0 ? `🥛 ${tally.milkPackets}pkt ₹${milkCost} exp` : ''}
               {totalPayments > 0 ? ` · ₹${totalPayments} collected` : ''}
             </Text>

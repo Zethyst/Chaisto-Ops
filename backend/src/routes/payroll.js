@@ -3,9 +3,13 @@ const mongoose = require('mongoose');
 const Report = require('../models/Report');
 const User = require('../models/User');
 const Attendance = require('../models/Attendance');
+const StallConfig = require('../models/StallConfig');
 const { allRoles, adminOrModerator } = require('../middleware/auth');
 
 const router = express.Router();
+
+const DEFAULT_CUPS_INCENTIVE = 1;
+const DEFAULT_MOMO_INCENTIVE = 5;
 
 // GET /v1/payroll/me — current staff's own monthly payroll breakdown
 router.get('/me', ...allRoles, async (req, res) => {
@@ -14,6 +18,9 @@ router.get('/me', ...allRoles, async (req, res) => {
 
   try {
     const user = await User.findById(req.user._id).select('monthlySalary name stallId');
+    const stallConfig = user?.stallId ? await StallConfig.findOne({ stallId: user.stallId }) : null;
+    const cupRate = stallConfig?.cupsIncentivePerCup ?? DEFAULT_CUPS_INCENTIVE;
+    const momoRate = stallConfig?.momoIncentivePerPacket ?? DEFAULT_MOMO_INCENTIVE;
 
     const [cupAgg] = await Report.aggregate([
       {
@@ -46,9 +53,9 @@ router.get('/me', ...allRoles, async (req, res) => {
 
     const baseSalary = user?.monthlySalary || 0;
     const totalCups = cupAgg?.totalCups || 0;
-    const cupsIncentive = totalCups * 1; // ₹1 per cup
+    const cupsIncentive = totalCups * cupRate;
     const totalMomoPackets = cupAgg?.totalMomoPackets || 0;
-    const momoIncentive = totalMomoPackets * 5; // ₹5 per momo packet
+    const momoIncentive = totalMomoPackets * momoRate;
 
     res.json({
       staffId: req.user._id,
@@ -81,6 +88,18 @@ router.get('/', ...adminOrModerator, async (req, res) => {
 
     const staffList = await User.find(staffFilter).select('name stallId stallName monthlySalary');
 
+    const stallIds = [...new Set(staffList.map((s) => s.stallId?.toString()).filter(Boolean))];
+    const stallConfigs = await StallConfig.find({ stallId: { $in: stallIds } });
+    const configMap = {};
+    stallConfigs.forEach((c) => { configMap[c.stallId.toString()] = c; });
+    const ratesFor = (staffStallId) => {
+      const c = staffStallId ? configMap[staffStallId.toString()] : null;
+      return {
+        cupRate: c?.cupsIncentivePerCup ?? DEFAULT_CUPS_INCENTIVE,
+        momoRate: c?.momoIncentivePerPacket ?? DEFAULT_MOMO_INCENTIVE,
+      };
+    };
+
     const cupAggs = await Report.aggregate([
       {
         $match: {
@@ -106,8 +125,9 @@ router.get('/', ...adminOrModerator, async (req, res) => {
     const payroll = staffList.map((s) => {
       const data = cupsMap[s._id.toString()] || { totalCups: 0, totalMomoPackets: 0, totalRevenue: 0, reportCount: 0 };
       const baseSalary = s.monthlySalary || 0;
-      const cupsIncentive = data.totalCups * 1;
-      const momoIncentive = (data.totalMomoPackets || 0) * 5;
+      const { cupRate, momoRate } = ratesFor(s.stallId);
+      const cupsIncentive = data.totalCups * cupRate;
+      const momoIncentive = (data.totalMomoPackets || 0) * momoRate;
       return {
         staffId: s._id,
         staffName: s.name,

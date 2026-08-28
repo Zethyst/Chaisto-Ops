@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput,  ActivityIndicator, RefreshControl, Modal,
+  Keyboard, TouchableWithoutFeedback, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { showAlert } from '../../components/AppAlert';
 import { useSelector } from 'react-redux';
@@ -16,6 +17,7 @@ const ITEMS = [
   { key: 'sugar', label: 'Sugar', unit: 'kg', icon: '🍬' },
   { key: 'teaLeaves', label: 'Tea Leaves', unit: 'grams', icon: '🌿' },
   { key: 'cups', label: 'Cups', unit: 'count', icon: '🥤' },
+  { key: 'momo', label: 'Momo', unit: 'packets', icon: '🥟' },
   { key: 'other', label: 'Other', unit: 'units', icon: '📦' },
 ] as const;
 
@@ -151,7 +153,9 @@ export default function WastageLogScreen() {
         )}
       </ScrollView>
 
-      <Modal visible={showForm} animationType="slide" transparent>
+      <Modal visible={showForm} animationType="slide" transparent onRequestClose={() => setShowForm(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Log Wastage</Text>
@@ -214,6 +218,8 @@ export default function WastageLogScreen() {
             </View>
           </View>
         </View>
+        </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

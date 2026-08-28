@@ -8,7 +8,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
 import {
   fetchMenuConfig, saveMenuItems,
-  addMenuItem, updateMenuItem, removeMenuItem,
+  addMenuItem, updateMenuItem, removeMenuItem, MOMO_ITEM_KEYS,
 } from '../../store/slices/menuSlice';
 import { MenuItem } from '../../types';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
@@ -308,7 +308,7 @@ export default function MenuPricingScreen({ navigation }: any) {
                     )}
                   </View>
                   <Text style={[styles.itemPrice, !item.active && styles.itemPriceInactive]}>
-                    ₹{item.price} per cup
+                    ₹{item.price} per {MOMO_ITEM_KEYS.includes(item.key) ? 'packet' : 'cup'}
                   </Text>
                 </View>
                 <View style={styles.itemActions}>
@@ -343,7 +343,7 @@ export default function MenuPricingScreen({ navigation }: any) {
               placeholderTextColor={COLORS.muted}
               autoFocus
             />
-            <Text style={styles.editLabel}>PRICE (₹ per cup)</Text>
+            <Text style={styles.editLabel}>PRICE (₹ per cup / packet)</Text>
             <TextInput
               style={styles.editInput}
               value={newPrice}
@@ -390,7 +390,7 @@ export default function MenuPricingScreen({ navigation }: any) {
           <Text style={styles.previewSub}>How staff sees it during sales entry</Text>
           {activeItems.sort((a, b) => a.sortOrder - b.sortOrder).map((item) => (
             <View key={item.key} style={styles.previewRow}>
-              <Text style={styles.previewItem}>☕ {item.name}</Text>
+              <Text style={styles.previewItem}>{MOMO_ITEM_KEYS.includes(item.key) ? '🥟' : '☕'} {item.name}</Text>
               <Text style={styles.previewPrice}>₹{item.price}</Text>
             </View>
           ))}

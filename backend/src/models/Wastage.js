@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const wastageItemSchema = new mongoose.Schema({
-  item: { type: String, enum: ['milk', 'sugar', 'teaLeaves', 'cups', 'other'], required: true },
+  item: { type: String, enum: ['milk', 'sugar', 'teaLeaves', 'cups', 'momo', 'other'], required: true },
   quantity: { type: Number, required: true, min: 0 },
   unit: { type: String, required: true }, // litres, kg, grams, count
   reason: { type: String, enum: ['expired', 'spilled', 'unsold', 'damaged', 'other'], required: true },

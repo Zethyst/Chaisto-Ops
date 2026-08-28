@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput,  ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showAlert } from '../../components/AppAlert';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
@@ -19,6 +20,7 @@ import { haptics } from '../../utils/haptics';
 const STEP_ICONS = ['📦', '🛒', '☕', '💳', '📊', '📸', '✓'];
 
 export default function DailyReportScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const { currentDraft, currentStep, isSubmitting } = useSelector((s: RootState) => s.reports);
   const dispatch = useDispatch<AppDispatch>();
 
@@ -91,7 +93,7 @@ export default function DailyReportScreen({ navigation }: any) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       {/* Progress Header */}
-      <View style={styles.progressHeader}>
+      <View style={[styles.progressHeader, { paddingTop: insets.top + SPACING.md }]}>
         <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>

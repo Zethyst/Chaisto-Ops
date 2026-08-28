@@ -86,6 +86,16 @@ const CONFIG_FIELDS: {
     max: 10,
     step: 0.5,
   },
+  {
+    key: 'momoIncentivePerPacket',
+    label: 'Momo Incentive Rate',
+    sub: '₹ paid to staff per momo packet sold (shown on their dashboard)',
+    unit: '₹/packet',
+    icon: '🥟',
+    min: 0,
+    max: 20,
+    step: 0.5,
+  },
 ];
 
 export default function AlertsConfigScreen({ route, navigation }: Props) {

@@ -97,6 +97,7 @@ export default function AdminDashboard({ navigation }: any) {
   // ─── Derived values ────────────────────────────────────────────────────────
   const summary = analytics?.summary ?? {};
   const totalCups = summary.totalCups ?? 0;
+  const totalMomoPackets = summary.totalMomoPackets ?? 0;
   const totalRevenue = summary.totalRevenue ?? 0;
   const totalUPI = summary.totalUPI ?? 0;
   const flaggedCount = summary.flaggedCount ?? 0;
@@ -115,7 +116,7 @@ export default function AdminDashboard({ navigation }: any) {
   // Build chart datasets from daily analytics
   const buildCharts = () => {
     const daily: any[] = analytics?.daily ?? [];
-    if (daily.length < 2) return { cups: EMPTY_CHART, revenue: EMPTY_CHART };
+    if (daily.length < 2) return { cups: EMPTY_CHART, momos: EMPTY_CHART, revenue: EMPTY_CHART };
     const slice = daily.slice(-7);
     const labels = slice.map((d: any) => {
       const dt = new Date(d._id);
@@ -123,6 +124,7 @@ export default function AdminDashboard({ navigation }: any) {
     });
     return {
       cups: { labels, datasets: [{ data: slice.map((d: any) => Math.round(d.cups)) }] },
+      momos: { labels, datasets: [{ data: slice.map((d: any) => Math.round(d.momoPackets || 0)) }] },
       revenue: { labels, datasets: [{ data: slice.map((d: any) => Math.round(d.revenue)) }] },
     };
   };
@@ -224,6 +226,13 @@ export default function AdminDashboard({ navigation }: any) {
               icon="☕"
             />
             <KpiCard
+              label="Momos"
+              value={totalMomoPackets.toLocaleString('en-IN')}
+              sub={`${summary.reportCount ?? 0} ${t('reportsThisPeriod').toLowerCase()}`}
+              color={COLORS.primaryLight}
+              icon="🥟"
+            />
+            <KpiCard
               label={t('revenueTotal')}
               value={`₹${Math.round(totalRevenue).toLocaleString('en-IN')}`}
               sub={`₹${summary.reportCount > 0 ? Math.round(totalRevenue / summary.reportCount) : 0} avg`}
@@ -255,6 +264,23 @@ export default function AdminDashboard({ navigation }: any) {
                 width={chartWidth}
                 height={180}
                 chartConfig={chartConfig}
+                bezier
+                style={styles.chart}
+                withInnerLines={false}
+                withOuterLines={false}
+              />
+            </View>
+          )}
+
+          {/* Momos Chart — real data */}
+          {analytics?.daily?.length >= 2 && (
+            <View style={styles.chartCard}>
+              <Text style={styles.chartTitle}>Momo packets sold — daily trend</Text>
+              <LineChart
+                data={charts.momos}
+                width={chartWidth}
+                height={180}
+                chartConfig={{ ...chartConfig, color: (o = 1) => `rgba(210, 105, 30, ${o})` }}
                 bezier
                 style={styles.chart}
                 withInnerLines={false}
@@ -361,7 +387,7 @@ export default function AdminDashboard({ navigation }: any) {
                     </Text>
                     <View style={styles.leaderInfo}>
                       <Text style={styles.leaderName}>{staff.name}</Text>
-                      <Text style={styles.leaderSub}>{staff.cups} cups · {staff.reports} reports</Text>
+                      <Text style={styles.leaderSub}>{staff.cups} cups · {staff.momoPackets || 0} momos · {staff.reports} reports</Text>
                     </View>
                     <Text style={styles.leaderRevenue}>
                       ₹{Math.round(staff.revenue).toLocaleString('en-IN')}
