@@ -62,11 +62,15 @@ export interface DailyReport {
     teaLeaves: number;   // grams
     cups: number;        // paper cup count
     kulhadCups: number;  // kulhad cup count
+    vegMomoPackets: number;
+    paneerMomoPackets: number;
   };
 
   purchases: {
     milk: number;        // litres
     snacks: number;      // ₹
+    vegMomoPackets: number;
+    paneerMomoPackets: number;
   };
 
   sales: {
@@ -89,6 +93,8 @@ export interface DailyReport {
     teaLeaves: number;
     cups: number;
     kulhadCups: number;
+    vegMomoPackets: number;
+    paneerMomoPackets: number;
   };
 
   photos: {
@@ -107,8 +113,11 @@ export interface DailyReport {
     expectedCupsFromMilk: number;
     milkUsed: number;
     revenuePerCup: number;
+    revenuePerMomoPacket?: number;
     upiRatio: number;
     totalMomoPackets?: number;
+    expectedMomoFromStock?: number;
+    momoStockDeviation?: number;
   };
 
   flags: SuspicionFlag[];
@@ -116,7 +125,7 @@ export interface DailyReport {
 }
 
 export interface SuspicionFlag {
-  type: 'milk_mismatch' | 'revenue_mismatch' | 'low_upi' | 'sales_drop' | 'location_mismatch' | 'missing_report';
+  type: 'milk_mismatch' | 'momo_stock_mismatch' | 'revenue_mismatch' | 'momo_revenue_mismatch' | 'low_upi' | 'sales_drop' | 'location_mismatch' | 'missing_report';
   severity: 'low' | 'medium' | 'high';
   message: string;
   value?: number;

@@ -35,6 +35,7 @@ export default function WastageLogScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Form state
   const [selectedItem, setSelectedItem] = useState<typeof ITEMS[number]['key']>('milk');
@@ -59,9 +60,10 @@ export default function WastageLogScreen() {
   const handleSave = async () => {
     const qty = parseFloat(quantity);
     if (!quantity || isNaN(qty) || qty <= 0) {
-      showAlert('Invalid Quantity', 'Enter a valid quantity.');
+      setFormError('Enter a valid quantity.');
       return;
     }
+    setFormError(null);
     haptics.medium();
     setSaving(true);
     const itemMeta = ITEMS.find((i) => i.key === selectedItem)!;
@@ -79,7 +81,7 @@ export default function WastageLogScreen() {
       load();
     } catch (err: any) {
       haptics.error();
-      showAlert('Error', err.response?.data?.error || 'Could not save');
+      setFormError(err.response?.data?.error || 'Could not save. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -102,7 +104,7 @@ export default function WastageLogScreen() {
             <Text style={styles.headerTitle}>Wastage Log</Text>
             <Text style={styles.headerSub}>{new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })}</Text>
           </View>
-          <TouchableOpacity style={styles.addBtn} onPress={() => { haptics.light(); setShowForm(true); }}>
+          <TouchableOpacity style={styles.addBtn} onPress={() => { haptics.light(); setFormError(null); setShowForm(true); }}>
             <Text style={styles.addBtnText}>+ Log</Text>
           </TouchableOpacity>
         </View>
@@ -159,6 +161,12 @@ export default function WastageLogScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Log Wastage</Text>
+
+            {formError && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorBannerText}>⚠️ {formError}</Text>
+              </View>
+            )}
 
             <Text style={styles.fieldLabel}>Item</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: SPACING.lg }}>
@@ -285,6 +293,12 @@ const styles = StyleSheet.create({
     borderTopRightRadius: BORDER_RADIUS.xl, padding: SPACING.xl, paddingBottom: 40,
   },
   modalTitle: { fontSize: FONT_SIZE.xl, fontWeight: '800', color: COLORS.black, marginBottom: SPACING.xl },
+  errorBanner: {
+    backgroundColor: COLORS.dangerBg, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md, marginBottom: SPACING.lg,
+    borderWidth: 1, borderColor: COLORS.danger,
+  },
+  errorBannerText: { fontSize: FONT_SIZE.sm, color: COLORS.danger, fontWeight: '600', lineHeight: 20 },
   fieldLabel: { fontSize: FONT_SIZE.sm, fontWeight: '700', color: COLORS.dark, marginBottom: SPACING.sm },
   itemOption: {
     alignItems: 'center', marginRight: SPACING.sm, borderRadius: BORDER_RADIUS.md,

@@ -27,6 +27,7 @@ export default function StaffManagementScreen() {
   // Move-stall state
   const [moveStallTarget, setMoveStallTarget] = useState<User | null>(null);
   const [movingStall, setMovingStall] = useState(false);
+  const [moveStallError, setMoveStallError] = useState<string | null>(null);
 
   // New user form
   const [newName, setNewName] = useState('');
@@ -36,6 +37,7 @@ export default function StaffManagementScreen() {
   const [newStallId, setNewStallId] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -67,10 +69,11 @@ export default function StaffManagementScreen() {
   };
 
   const createUser = async () => {
-    if (!newName.trim()) return showAlert('Missing Field', 'Please enter a name.');
-    if (!/^\d{10}$/.test(newPhone)) return showAlert('Invalid Phone', 'Enter a valid 10-digit number.');
-    if (newPassword.length < 8) return showAlert('Weak Password', 'Password must be at least 8 characters.');
+    if (!newName.trim()) return setAddError('Please enter a name.');
+    if (!/^\d{10}$/.test(newPhone)) return setAddError('Enter a valid 10-digit phone number.');
+    if (newPassword.length < 8) return setAddError('Password must be at least 8 characters.');
 
+    setAddError(null);
     setCreating(true);
     try {
       const created = await authService.createStaffAccount({
@@ -89,7 +92,7 @@ export default function StaffManagementScreen() {
       );
     } catch (err: any) {
       const msg = err.response?.data?.error || err.message || 'Failed to create account';
-      showAlert('Error', msg);
+      setAddError(msg);
     } finally {
       setCreating(false);
     }
@@ -146,12 +149,15 @@ export default function StaffManagementScreen() {
 
   const openMoveStall = (staff: User) => {
     haptics.light();
+    setMoveStallError(null);
     setMoveStallTarget(staff);
   };
 
   const handleMoveStall = async (stallId: string | null) => {
     if (!moveStallTarget) return;
+    const staffName = moveStallTarget.name;
     const stallName = stalls.find((s) => s.id === stallId)?.name ?? null;
+    setMoveStallError(null);
     setMovingStall(true);
     try {
       await authService.updateStaffStall(moveStallTarget.id, stallId, stallName);
@@ -161,14 +167,14 @@ export default function StaffManagementScreen() {
           : s)
       );
       haptics.success();
-      showAlert('Done', stallId
-        ? `${moveStallTarget.name} moved to ${stallName}.`
-        : `${moveStallTarget.name} unassigned from stall.`
-      );
       setMoveStallTarget(null);
+      showAlert('Done', stallId
+        ? `${staffName} moved to ${stallName}.`
+        : `${staffName} unassigned from stall.`
+      );
     } catch {
       haptics.error();
-      showAlert('Error', 'Could not update stall assignment.');
+      setMoveStallError('Could not update stall assignment. Please try again.');
     } finally {
       setMovingStall(false);
     }
@@ -197,7 +203,7 @@ export default function StaffManagementScreen() {
           onChangeText={setSearch}
         />
         {isAdmin && (
-          <TouchableOpacity style={styles.addBtn} onPress={() => { haptics.medium(); setShowAddModal(true); }}>
+          <TouchableOpacity style={styles.addBtn} onPress={() => { haptics.medium(); setAddError(null); setShowAddModal(true); }}>
             <Text style={styles.addBtnText}>+ Add Staff</Text>
           </TouchableOpacity>
         )}
@@ -291,6 +297,11 @@ export default function StaffManagementScreen() {
           <View style={styles.moveModalCard}>
             <Text style={styles.moveModalTitle}>Change Stall</Text>
             <Text style={styles.moveModalSub}>{moveStallTarget?.name}</Text>
+            {moveStallError && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorBannerText}>⚠️ {moveStallError}</Text>
+              </View>
+            )}
             <ScrollView style={{ maxHeight: 320 }}>
               <TouchableOpacity
                 style={[styles.stallOption, !moveStallTarget?.stallId && styles.stallOptionActive]}
@@ -337,6 +348,11 @@ export default function StaffManagementScreen() {
           </View>
 
           <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
+            {addError && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorBannerText}>⚠️ {addError}</Text>
+              </View>
+            )}
             <FormField label="Full Name *" value={newName} onChangeText={setNewName} placeholder="Ravi Kumar" />
             <FormField
               label="Phone Number *"
@@ -510,6 +526,12 @@ const styles = StyleSheet.create({
     borderTopRightRadius: BORDER_RADIUS.xl, padding: SPACING.xl, paddingBottom: 40,
   },
   moveModalTitle: { fontSize: FONT_SIZE.xl, fontWeight: '800', color: COLORS.black, marginBottom: 4 },
+  errorBanner: {
+    backgroundColor: COLORS.dangerBg, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md, marginBottom: SPACING.lg,
+    borderWidth: 1, borderColor: COLORS.danger,
+  },
+  errorBannerText: { fontSize: FONT_SIZE.sm, color: COLORS.danger, fontWeight: '600', lineHeight: 20 },
   moveModalSub: { fontSize: FONT_SIZE.sm, color: COLORS.muted, marginBottom: SPACING.lg },
   stallOption: {
     borderWidth: 1, borderColor: COLORS.border, borderRadius: BORDER_RADIUS.md,

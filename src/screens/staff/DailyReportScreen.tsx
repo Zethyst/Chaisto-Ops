@@ -223,6 +223,8 @@ function OpeningStockStep({ draft, dispatch }: any) {
       <NumberField label="Tea leaves" value={s.teaLeaves} onChange={(v: number) => update('teaLeaves', v)} unit="grams" />
       <NumberField label="Paper cups" value={s.cups} onChange={(v: number) => update('cups', v)} unit="count" />
       <NumberField label="Kulhad cups" value={s.kulhadCups} onChange={(v: number) => update('kulhadCups', v)} unit="count" />
+      <NumberField label="Veg momo packets" value={s.vegMomoPackets} onChange={(v: number) => update('vegMomoPackets', v)} unit="packets" />
+      <NumberField label="Paneer momo packets" value={s.paneerMomoPackets} onChange={(v: number) => update('paneerMomoPackets', v)} unit="packets" />
     </StepCard>
   );
 }
@@ -234,6 +236,8 @@ function PurchasesStep({ draft, dispatch }: any) {
   return (
     <StepCard title="🛒 Purchases Today">
       <NumberField label="Milk purchased" value={p.milk} onChange={(v: number) => update('milk', v)} unit="litres" hint="Leave 0 if none" />
+      <NumberField label="Veg momo packets purchased" value={p.vegMomoPackets} onChange={(v: number) => update('vegMomoPackets', v)} unit="packets" hint="Leave 0 if none" />
+      <NumberField label="Paneer momo packets purchased" value={p.paneerMomoPackets} onChange={(v: number) => update('paneerMomoPackets', v)} unit="packets" hint="Leave 0 if none" />
       <NumberField label="Snacks purchased" value={p.snacks} onChange={(v: number) => update('snacks', v)} unit="₹" hint="Total cost of snacks bought" />
     </StepCard>
   );
@@ -328,6 +332,8 @@ function ClosingStockStep({ draft, dispatch }: any) {
       <NumberField label="Tea leaves remaining" value={s.teaLeaves} onChange={(v: number) => update('teaLeaves', v)} unit="grams" />
       <NumberField label="Paper cups remaining" value={s.cups} onChange={(v: number) => update('cups', v)} unit="count" />
       <NumberField label="Kulhad cups remaining" value={s.kulhadCups} onChange={(v: number) => update('kulhadCups', v)} unit="count" />
+      <NumberField label="Veg momo packets remaining" value={s.vegMomoPackets} onChange={(v: number) => update('vegMomoPackets', v)} unit="packets" />
+      <NumberField label="Paneer momo packets remaining" value={s.paneerMomoPackets} onChange={(v: number) => update('paneerMomoPackets', v)} unit="packets" />
     </StepCard>
   );
 }

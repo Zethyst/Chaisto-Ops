@@ -31,6 +31,7 @@ export default function PayrollScreen() {
   const [selectedStaff, setSelectedStaff] = useState<PayrollSummary | null>(null);
   const [salaryInput, setSalaryInput] = useState('');
   const [savingSalary, setSavingSalary] = useState(false);
+  const [salaryError, setSalaryError] = useState<string | null>(null);
 
   const load = async () => {
     try {
@@ -50,15 +51,17 @@ export default function PayrollScreen() {
     haptics.light();
     setSelectedStaff(p);
     setSalaryInput(String(p.baseSalary || ''));
+    setSalaryError(null);
     setSalaryModal(true);
   };
 
   const handleSaveSalary = async () => {
     const salary = parseFloat(salaryInput);
     if (isNaN(salary) || salary < 0) {
-      showAlert('Invalid', 'Enter a valid salary amount');
+      setSalaryError('Enter a valid salary amount.');
       return;
     }
+    setSalaryError(null);
     haptics.medium();
     setSavingSalary(true);
     try {
@@ -68,7 +71,7 @@ export default function PayrollScreen() {
       load();
     } catch (err: any) {
       haptics.error();
-      showAlert('Error', err.response?.data?.error || 'Could not update salary');
+      setSalaryError(err.response?.data?.error || 'Could not update salary. Please try again.');
     } finally {
       setSavingSalary(false);
     }
@@ -173,6 +176,11 @@ export default function PayrollScreen() {
               <View style={styles.modalCard}>
                 <Text style={styles.modalTitle}>Set Base Salary</Text>
                 <Text style={styles.modalSub}>{selectedStaff?.staffName}</Text>
+                {salaryError && (
+                  <View style={styles.errorBanner}>
+                    <Text style={styles.errorBannerText}>⚠️ {salaryError}</Text>
+                  </View>
+                )}
                 <Text style={styles.fieldLabel}>Monthly Base Salary (₹)</Text>
                 <TextInput
                   style={styles.input}
@@ -297,6 +305,12 @@ const styles = StyleSheet.create({
   },
   modalTitle: { fontSize: FONT_SIZE.xl, fontWeight: '800', color: COLORS.black, marginBottom: 4 },
   modalSub: { fontSize: FONT_SIZE.sm, color: COLORS.muted, marginBottom: SPACING.xl },
+  errorBanner: {
+    backgroundColor: COLORS.dangerBg, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md, marginBottom: SPACING.lg,
+    borderWidth: 1, borderColor: COLORS.danger,
+  },
+  errorBannerText: { fontSize: FONT_SIZE.sm, color: COLORS.danger, fontWeight: '600', lineHeight: 20 },
   fieldLabel: { fontSize: FONT_SIZE.sm, fontWeight: '700', color: COLORS.dark, marginBottom: SPACING.sm },
   input: {
     borderWidth: 1, borderColor: COLORS.border, borderRadius: BORDER_RADIUS.sm,

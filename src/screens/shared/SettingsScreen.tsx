@@ -42,10 +42,12 @@ export default function SettingsScreen() {
   const [pendingPhotoUri, setPendingPhotoUri] = useState<string | null>(null);
   const [profileSaving, setProfileSaving] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   const handleOpenEditProfile = () => {
     setEditName(user?.name ?? '');
     setPendingPhotoUri(null);
+    setProfileError(null);
     haptics.selection();
     setShowEditProfile(true);
   };
@@ -72,9 +74,23 @@ export default function SettingsScreen() {
   };
 
   const handlePickerResponse = async (res: ImagePickerResponse) => {
-    if (res.didCancel || res.errorCode) return;
+    if (res.didCancel) return;
+    if (res.errorCode) {
+      haptics.error();
+      console.error('[Image picker error]', res.errorCode, res.errorMessage);
+      setProfileError(
+        res.errorCode === 'permission'
+          ? 'Allow photo library access in your phone Settings to change your profile picture.'
+          : (res.errorMessage || 'Could not open photos. Please try again.')
+      );
+      return;
+    }
     const uri = res.assets?.[0]?.uri;
-    if (!uri) return;
+    if (!uri) {
+      setProfileError('No photo selected. Please try again.');
+      return;
+    }
+    setProfileError(null);
     setPhotoUploading(true);
     try {
       const url = await uploadToCloudinary(uri);
@@ -84,7 +100,7 @@ export default function SettingsScreen() {
       haptics.error();
       const detail = err?.response?.data?.error?.message || err?.message || 'Unknown error';
       console.error('[Cloudinary upload error]', detail, err?.response?.data);
-      showAlert('Upload Failed', detail);
+      setProfileError(`Upload failed: ${detail}`);
     } finally {
       setPhotoUploading(false);
     }
@@ -92,9 +108,10 @@ export default function SettingsScreen() {
 
   const handleSaveProfile = async () => {
     if (!editName.trim()) {
-      showAlert('Name Required', 'Please enter your name.');
+      setProfileError('Please enter your name.');
       return;
     }
+    setProfileError(null);
     haptics.medium();
     setProfileSaving(true);
     try {
@@ -108,11 +125,11 @@ export default function SettingsScreen() {
       const updated = await authService.updateProfile(user!.id, updates);
       dispatch(setUser({ ...user!, ...updates, name: updated.name, profilePhoto: updated.profilePhoto }));
       haptics.success();
-      showAlert('Saved', 'Profile updated successfully.');
       setShowEditProfile(false);
+      showAlert('Saved', 'Profile updated successfully.');
     } catch (err: any) {
       haptics.error();
-      showAlert('Error', err.response?.data?.error || 'Could not save profile.');
+      setProfileError(err.response?.data?.error || 'Could not save profile.');
     } finally {
       setProfileSaving(false);
     }
@@ -345,6 +362,12 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </View>
 
+            {profileError && (
+              <View style={styles.profileErrorBanner}>
+                <Text style={styles.profileErrorText}>⚠️ {profileError}</Text>
+              </View>
+            )}
+
             {/* Avatar preview */}
             <View style={styles.editAvatarWrap}>
               <View style={[styles.editAvatar, { backgroundColor: roleBg }]}>
@@ -511,6 +534,13 @@ const styles = StyleSheet.create({
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SPACING.xl },
   modalTitle: { fontSize: FONT_SIZE.xl, fontWeight: '800', color: COLORS.black },
   modalClose: { fontSize: 20, color: COLORS.muted, fontWeight: '700' },
+
+  profileErrorBanner: {
+    backgroundColor: COLORS.dangerBg, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md, marginBottom: SPACING.lg,
+    borderWidth: 1, borderColor: COLORS.danger,
+  },
+  profileErrorText: { fontSize: FONT_SIZE.sm, color: COLORS.danger, fontWeight: '600', lineHeight: 20 },
 
   editAvatarWrap: { alignItems: 'center', marginBottom: SPACING.xl },
   editAvatar: {

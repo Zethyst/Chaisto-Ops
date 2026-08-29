@@ -32,6 +32,7 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const [category, setCategory] = useState<Expense['category']>('gas');
   const [amount, setAmount] = useState('');
@@ -57,9 +58,10 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
   const handleSave = async () => {
     const amt = parseFloat(amount);
     if (!amount || isNaN(amt) || amt < 1) {
-      showAlert('Invalid Amount', 'Enter a valid amount (min ₹1).');
+      setFormError('Enter a valid amount (min ₹1).');
       return;
     }
+    setFormError(null);
     haptics.medium();
     setSaving(true);
     try {
@@ -78,7 +80,7 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
       load();
     } catch (err: any) {
       haptics.error();
-      showAlert('Error', err.response?.data?.error || 'Could not save expense');
+      setFormError(err.response?.data?.error || 'Could not save expense. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -121,7 +123,7 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
             <Text style={styles.headerTitle}>Expense Tracker</Text>
             <Text style={styles.headerSub}>{new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })}</Text>
           </View>
-          <TouchableOpacity style={styles.addBtn} onPress={() => { haptics.light(); setShowForm(true); }}>
+          <TouchableOpacity style={styles.addBtn} onPress={() => { haptics.light(); setFormError(null); setShowForm(true); }}>
             <Text style={styles.addBtnText}>+ Log</Text>
           </TouchableOpacity>
         </View>
@@ -182,6 +184,12 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Log Expense</Text>
+
+            {formError && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorBannerText}>⚠️ {formError}</Text>
+              </View>
+            )}
 
             <Text style={styles.fieldLabel}>Category</Text>
             <View style={styles.catGrid}>
@@ -290,6 +298,12 @@ const styles = StyleSheet.create({
     borderTopRightRadius: BORDER_RADIUS.xl, padding: SPACING.xl, paddingBottom: 40,
   },
   modalTitle: { fontSize: FONT_SIZE.xl, fontWeight: '800', color: COLORS.black, marginBottom: SPACING.xl },
+  errorBanner: {
+    backgroundColor: COLORS.dangerBg, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md, marginBottom: SPACING.lg,
+    borderWidth: 1, borderColor: COLORS.danger,
+  },
+  errorBannerText: { fontSize: FONT_SIZE.sm, color: COLORS.danger, fontWeight: '600', lineHeight: 20 },
   fieldLabel: { fontSize: FONT_SIZE.sm, fontWeight: '700', color: COLORS.dark, marginBottom: SPACING.sm },
   catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginBottom: SPACING.lg },
   catOption: {

@@ -157,6 +157,14 @@ export default function ReportDetailScreen({ route, navigation }: any) {
         <DataRow label="Est. Revenue" value={`₹${report.computed?.totalRevenue || 0}`} bold />
       </Section>
 
+      {/* Purchases */}
+      <Section title="🛒 Purchases Today">
+        <DataRow label="Milk Purchased" value={`${report.purchases?.milk || 0} L`} />
+        <DataRow label="Veg Momo Packets Purchased" value={`${report.purchases?.vegMomoPackets || 0} packets`} />
+        <DataRow label="Paneer Momo Packets Purchased" value={`${report.purchases?.paneerMomoPackets || 0} packets`} />
+        <DataRow label="Snacks Purchased" value={`₹${report.purchases?.snacks || 0}`} />
+      </Section>
+
       {/* Payments */}
       <Section title="💳 Payments">
         <DataRow label="UPI Received" value={`₹${report.payments?.upi || 0}`} />
@@ -172,6 +180,8 @@ export default function ReportDetailScreen({ route, navigation }: any) {
         <DataRow label="Tea Leaves" value={`${report.openingStock?.teaLeaves || 0} g`} />
         <DataRow label="Paper Cups" value={String(report.openingStock?.cups || 0)} />
         <DataRow label="Kulhad Cups" value={String(report.openingStock?.kulhadCups || 0)} />
+        <DataRow label="Veg Momo Packets" value={String(report.openingStock?.vegMomoPackets || 0)} />
+        <DataRow label="Paneer Momo Packets" value={String(report.openingStock?.paneerMomoPackets || 0)} />
       </Section>
 
       {/* Closing Stock */}
@@ -181,13 +191,17 @@ export default function ReportDetailScreen({ route, navigation }: any) {
         <DataRow label="Tea Leaves" value={`${report.closingStock?.teaLeaves || 0} g`} />
         <DataRow label="Paper Cups" value={String(report.closingStock?.cups || 0)} />
         <DataRow label="Kulhad Cups" value={String(report.closingStock?.kulhadCups || 0)} />
+        <DataRow label="Veg Momo Packets" value={String(report.closingStock?.vegMomoPackets || 0)} />
+        <DataRow label="Paneer Momo Packets" value={String(report.closingStock?.paneerMomoPackets || 0)} />
       </Section>
 
       {/* Computed */}
       <Section title="🔢 Computed Metrics">
         <DataRow label="Milk Used" value={`${(report.computed?.milkUsed || 0).toFixed(2)} L`} />
         <DataRow label="Expected Cups (from milk)" value={String(Math.round(report.computed?.expectedCupsFromMilk || 0))} />
+        <DataRow label="Expected Momo Packets (from stock)" value={String(Math.round(report.computed?.expectedMomoFromStock || 0))} />
         <DataRow label="Revenue per Cup" value={`₹${(report.computed?.revenuePerCup || 0).toFixed(1)}`} />
+        <DataRow label="Revenue per Momo Packet" value={`₹${(report.computed?.revenuePerMomoPacket || 0).toFixed(1)}`} />
       </Section>
 
       {/* Location */}

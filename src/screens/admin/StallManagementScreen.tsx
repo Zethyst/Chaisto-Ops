@@ -27,6 +27,7 @@ export default function StallManagementScreen() {
   const [showModal, setShowModal] = useState(false);
   const [editingStall, setEditingStall] = useState<Stall | null>(null);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const [form, setForm] = useState(EMPTY_FORM);
 
@@ -48,6 +49,7 @@ export default function StallManagementScreen() {
     haptics.medium();
     setEditingStall(null);
     setForm(EMPTY_FORM);
+    setFormError(null);
     setShowModal(true);
   };
 
@@ -61,18 +63,20 @@ export default function StallManagementScreen() {
       longitude: stall.longitude != null ? String(stall.longitude) : '',
       radius: String(stall.allowedRadiusMeters ?? 200),
     });
+    setFormError(null);
     setShowModal(true);
   };
 
   const validate = () => {
-    if (!form.name.trim()) { showAlert('Missing', 'Stall name is required.'); return false; }
-    if (!form.latitude || !form.longitude) { showAlert('Missing', 'Latitude and longitude are required.'); return false; }
-    if (isNaN(Number(form.latitude)) || isNaN(Number(form.longitude))) { showAlert('Invalid', 'Enter valid decimal coordinates.'); return false; }
+    if (!form.name.trim()) { setFormError('Stall name is required.'); return false; }
+    if (!form.latitude || !form.longitude) { setFormError('Latitude and longitude are required.'); return false; }
+    if (isNaN(Number(form.latitude)) || isNaN(Number(form.longitude))) { setFormError('Enter valid decimal coordinates.'); return false; }
     return true;
   };
 
   const handleSave = async () => {
     if (!validate()) return;
+    setFormError(null);
     haptics.medium();
     setSaving(true);
     try {
@@ -86,17 +90,19 @@ export default function StallManagementScreen() {
       if (editingStall) {
         await authService.updateStall(editingStall.id, payload);
         setStalls((prev) => prev.map((s) => s.id === editingStall.id ? { ...s, ...payload } : s));
+        haptics.success();
+        setShowModal(false);
         showAlert('Saved', `${payload.name} updated.`);
       } else {
         const created = await authService.createStall(payload);
         setStalls((prev) => [...prev, { ...payload, id: created.id, isActive: true }]);
+        haptics.success();
+        setShowModal(false);
         showAlert('Created', `${payload.name} is now live.`);
       }
-      haptics.success();
-      setShowModal(false);
     } catch (err: any) {
       haptics.error();
-      showAlert('Error', err.response?.data?.error || 'Could not save stall.');
+      setFormError(err.response?.data?.error || 'Could not save stall. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -209,6 +215,11 @@ export default function StallManagementScreen() {
           </View>
 
           <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
+            {formError && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorBannerText}>⚠️ {formError}</Text>
+              </View>
+            )}
             <Field label="Stall Name *" value={form.name} onChangeText={(v) => setField('name', v)} placeholder="e.g. Chaisto - Civil Lines" />
             <Field label="Address" value={form.address} onChangeText={(v) => setField('address', v)} placeholder="e.g. 12A, Civil Lines, Prayagraj" />
 
@@ -346,6 +357,12 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: FONT_SIZE.xl, fontWeight: '700', color: COLORS.black },
   modalClose: { color: COLORS.primary, fontWeight: '600' },
   modalBody: { flex: 1, padding: SPACING.xl },
+  errorBanner: {
+    backgroundColor: COLORS.dangerBg, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md, marginBottom: SPACING.lg,
+    borderWidth: 1, borderColor: COLORS.danger,
+  },
+  errorBannerText: { fontSize: FONT_SIZE.sm, color: COLORS.danger, fontWeight: '600', lineHeight: 20 },
 
   fieldWrap: { marginBottom: SPACING.lg },
   fieldLabel: { fontSize: FONT_SIZE.sm, fontWeight: '600', color: COLORS.dark, marginBottom: 8 },

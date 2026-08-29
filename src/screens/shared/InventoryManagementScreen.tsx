@@ -29,6 +29,7 @@ export default function InventoryManagementScreen() {
   const [supplyQty, setSupplyQty] = useState('');
   const [supplyNote, setSupplyNote] = useState('');
   const [supplyLoading, setSupplyLoading] = useState(false);
+  const [supplyError, setSupplyError] = useState<string | null>(null);
 
   // Add item modal
   const [showAddModal, setShowAddModal] = useState(false);
@@ -37,6 +38,7 @@ export default function InventoryManagementScreen() {
   const [newThreshold, setNewThreshold] = useState('');
   const [newStock, setNewStock] = useState('');
   const [addLoading, setAddLoading] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
 
   const loadItems = useCallback(async (stallId: string) => {
     if (!stallId) return;
@@ -74,22 +76,26 @@ export default function InventoryManagementScreen() {
   const handleSupply = async () => {
     if (!supplyItem || !supplyQty || isNaN(parseFloat(supplyQty))) {
       haptics.error();
-      showAlert('Invalid', 'Enter a valid quantity.');
+      setSupplyError('Enter a valid quantity.');
       return;
     }
+    setSupplyError(null);
     haptics.medium();
     setSupplyLoading(true);
     try {
       const updated = await inventoryService.addSupply(supplyItem.id, parseFloat(supplyQty), supplyNote || undefined);
       setItems((prev) => prev.map((i) => i.id === updated.id ? updated : i));
+      const restockedName = supplyItem.name;
+      const restockedUnit = supplyItem.unit;
+      const restockedQty = supplyQty;
       setSupplyItem(null);
       setSupplyQty('');
       setSupplyNote('');
       haptics.success();
-      showAlert('Done', `${supplyItem.name} restocked by ${supplyQty} ${supplyItem.unit}.`);
+      showAlert('Done', `${restockedName} restocked by ${restockedQty} ${restockedUnit}.`);
     } catch (err: any) {
       haptics.error();
-      showAlert('Error', err.response?.data?.error || 'Could not record supply');
+      setSupplyError(err.response?.data?.error || 'Could not record supply. Please try again.');
     } finally {
       setSupplyLoading(false);
     }
@@ -98,9 +104,10 @@ export default function InventoryManagementScreen() {
   const handleAddItem = async () => {
     if (!newName.trim() || !newUnit.trim() || !newThreshold) {
       haptics.error();
-      showAlert('Missing Fields', 'Name, unit, and minimum threshold are required.');
+      setAddError('Name, unit, and minimum threshold are required.');
       return;
     }
+    setAddError(null);
     haptics.medium();
     setAddLoading(true);
     try {
@@ -117,7 +124,7 @@ export default function InventoryManagementScreen() {
       haptics.success();
     } catch (err: any) {
       haptics.error();
-      showAlert('Error', err.response?.data?.error || 'Could not add item');
+      setAddError(err.response?.data?.error || 'Could not add item. Please try again.');
     } finally {
       setAddLoading(false);
     }
@@ -171,7 +178,7 @@ export default function InventoryManagementScreen() {
         <StatChip label="Low Stock" value={items.filter((i) => stockLevel(i) === 'low').length} color={COLORS.danger} />
         <StatChip label="OK" value={items.filter((i) => stockLevel(i) === 'ok').length} color={COLORS.success} />
         {isAdminOrMod && (
-          <TouchableOpacity style={styles.addItemBtn} onPress={() => { haptics.medium(); setShowAddModal(true); }}>
+          <TouchableOpacity style={styles.addItemBtn} onPress={() => { haptics.medium(); setAddError(null); setShowAddModal(true); }}>
             <Text style={styles.addItemText}>+ Add Item</Text>
           </TouchableOpacity>
         )}
@@ -221,7 +228,7 @@ export default function InventoryManagementScreen() {
                 </View>
 
                 {isAdminOrMod && (
-                  <TouchableOpacity style={styles.supplyBtn} onPress={() => { haptics.light(); setSupplyItem(item); }}>
+                  <TouchableOpacity style={styles.supplyBtn} onPress={() => { haptics.light(); setSupplyError(null); setSupplyItem(item); }}>
                     <Text style={styles.supplyBtnText}>+ Record Supply</Text>
                   </TouchableOpacity>
                 )}
@@ -241,6 +248,11 @@ export default function InventoryManagementScreen() {
           <View style={styles.modal}>
             <Text style={styles.modalTitle}>Record Supply</Text>
             <Text style={styles.modalSub}>{supplyItem?.name} · {supplyItem?.unit}</Text>
+            {supplyError && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorBannerText}>⚠️ {supplyError}</Text>
+              </View>
+            )}
             <Text style={styles.fieldLabel}>Quantity received</Text>
             <TextInput
               style={styles.fieldInput}
@@ -281,6 +293,11 @@ export default function InventoryManagementScreen() {
             </TouchableOpacity>
           </View>
           <View style={{ padding: SPACING.xl }}>
+            {addError && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorBannerText}>⚠️ {addError}</Text>
+              </View>
+            )}
             <AddField label="Item Name *" value={newName} onChange={setNewName} placeholder="e.g. Milk" />
             <AddField label="Unit *" value={newUnit} onChange={setNewUnit} placeholder="litres / kg / count" />
             <AddField label="Min. Threshold *" value={newThreshold} onChange={setNewThreshold} placeholder="0" numeric />
@@ -376,6 +393,12 @@ const styles = StyleSheet.create({
   },
   modalTitle: { fontSize: FONT_SIZE.xl, fontWeight: '700', color: COLORS.black, marginBottom: 4 },
   modalSub: { fontSize: FONT_SIZE.sm, color: COLORS.muted, marginBottom: SPACING.lg },
+  errorBanner: {
+    backgroundColor: COLORS.dangerBg, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md, marginBottom: SPACING.lg,
+    borderWidth: 1, borderColor: COLORS.danger,
+  },
+  errorBannerText: { fontSize: FONT_SIZE.sm, color: COLORS.danger, fontWeight: '600', lineHeight: 20 },
   fieldLabel: { fontSize: FONT_SIZE.sm, fontWeight: '600', color: COLORS.dark, marginBottom: 6 },
   fieldInput: {
     borderWidth: 1, borderColor: COLORS.border, borderRadius: BORDER_RADIUS.sm,

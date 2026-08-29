@@ -98,16 +98,8 @@ export const SHADOWS = {
   },
 };
 
-// Chai brewing constants for anti-cheat
-export const BREW_CONSTANTS = {
-  ML_PER_CUP: 130,           // ml of milk per cup (cutting chai ~100-150ml)
-  CUPS_PER_LITRE: 7.5,       // approx cups per litre of milk
-  MIN_PRICE_REGULAR: 10,     // ₹ minimum per cup
-  MAX_PRICE_REGULAR: 30,     // ₹ maximum per cup
-  UPI_MIN_RATIO: 0.2,        // at least 20% via UPI expected
-  SALES_DROP_THRESHOLD: 0.5, // 50% drop vs 7-day avg = suspicious
-  LOCATION_RADIUS_METERS: 200, // allowed distance from stall GPS
-};
+// Chai brewing constants for anti-cheat (kept in its own file — see brew.ts)
+export { BREW_CONSTANTS } from './brew';
 
 export const ADMIN_CREDENTIALS = {
   phone: '8318876136',
@@ -159,7 +151,7 @@ export const API_CONFIG = {
 };
 
 export const CLOUDINARY_CONFIG = {
-  CLOUD_NAME: 'chaisto-ops',
+  CLOUD_NAME: 'chaisto',
   UPLOAD_PRESET: 'chaisto_reports',
   FOLDER: 'daily-reports',
 };
