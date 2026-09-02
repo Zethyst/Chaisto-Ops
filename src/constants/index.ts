@@ -170,4 +170,7 @@ export const PHOTO_CATEGORIES = [
   { key: 'cash', label: 'Cash Photo', icon: 'cash', required: true },
   { key: 'stock', label: 'Stock Photo', icon: 'package', required: true },
   { key: 'milkPacket', label: 'Milk Packets', icon: 'droplets', required: true },
+  { key: 'cartClosing', label: 'Cart Closing', icon: 'store', required: false },
 ] as const;
+
+export const REQUIRED_PHOTO_CATEGORIES = PHOTO_CATEGORIES.filter(c => c.required);

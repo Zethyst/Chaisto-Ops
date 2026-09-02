@@ -80,6 +80,7 @@ export default function ReportDetailScreen({ route, navigation }: any) {
     cash: 'Cash Tray',
     stock: 'Stock',
     milkPacket: 'Milk Packet',
+    cartClosing: 'Cart Closing',
   };
 
   return (
@@ -100,10 +101,22 @@ export default function ReportDetailScreen({ route, navigation }: any) {
         </View>
       </View>
 
+      {/* Backfill provenance — this report was not filed by the staff member */}
+      {report.isBackfill && (
+        <View style={styles.backfillBanner}>
+          <Text style={styles.backfillIcon}>🗓</Text>
+          <Text style={styles.backfillText}>
+            Entered after the fact by {report.enteredByName || 'an admin'} — there is no GPS for it,
+            and any photos were uploaded from a gallery rather than captured live, so location and
+            photo checks do not apply.
+          </Text>
+        </View>
+      )}
+
       {/* Summary KPIs */}
       <View style={styles.kpiRow}>
         <MiniKpi label="Cups" value={String(totalCups)} icon="☕" color={COLORS.primary} />
-        <MiniKpi label="Momos" value={String(totalMomoPackets)} icon="🥟" color={COLORS.primary} />
+        <MiniKpi label="Momo Plates" value={String(totalMomoPackets)} icon="🥟" color={COLORS.primary} />
         <MiniKpi label="Revenue" value={`₹${totalRevenue}`} icon="💰" color={COLORS.success} />
         <MiniKpi label="UPI" value={`${upiPct}%`} icon="📱" color={COLORS.info} />
         <MiniKpi label="Flags" value={String(report.flags?.length || 0)} icon="🚩" color={COLORS.danger} />
@@ -149,20 +162,22 @@ export default function ReportDetailScreen({ route, navigation }: any) {
         <DataRow label="Regular Chai" value={`${report.sales?.regularCups || 0} cups`} />
         <DataRow label="Special Chai" value={`${report.sales?.specialCups || 0} cups`} />
         <DataRow label="Kulhad Chai" value={`${report.sales?.kulhadCups || 0} cups`} />
-        <DataRow label="Veg Momo" value={`${report.sales?.vegMomoPackets || 0} packets`} />
-        <DataRow label="Paneer Momo" value={`${report.sales?.paneerMomoPackets || 0} packets`} />
+        <DataRow label="Veg Momo" value={`${report.sales?.vegMomoPackets || 0} plates`} />
+        <DataRow label="Paneer Momo" value={`${report.sales?.paneerMomoPackets || 0} plates`} />
         <DataRow label="Snack Sales" value={`₹${report.sales?.snacks || 0}`} />
+        <DataRow label="Cigarette Sales" value={`₹${report.sales?.cigarettes || 0}`} />
         <DataRow label="Total Cups" value={`${totalCups} cups`} bold />
-        <DataRow label="Total Momo Packets" value={`${totalMomoPackets} packets`} bold />
+        <DataRow label="Total Momo Plates" value={`${totalMomoPackets} plates`} bold />
         <DataRow label="Est. Revenue" value={`₹${report.computed?.totalRevenue || 0}`} bold />
       </Section>
 
       {/* Purchases */}
       <Section title="🛒 Purchases Today">
         <DataRow label="Milk Purchased" value={`${report.purchases?.milk || 0} L`} />
-        <DataRow label="Veg Momo Packets Purchased" value={`${report.purchases?.vegMomoPackets || 0} packets`} />
-        <DataRow label="Paneer Momo Packets Purchased" value={`${report.purchases?.paneerMomoPackets || 0} packets`} />
+        <DataRow label="Veg Momo Purchased" value={`${report.purchases?.vegMomoPackets || 0} plates`} />
+        <DataRow label="Paneer Momo Purchased" value={`${report.purchases?.paneerMomoPackets || 0} plates`} />
         <DataRow label="Snacks Purchased" value={`₹${report.purchases?.snacks || 0}`} />
+        <DataRow label="Cigarettes Purchased" value={`₹${report.purchases?.cigarettes || 0}`} />
       </Section>
 
       {/* Payments */}
@@ -176,23 +191,19 @@ export default function ReportDetailScreen({ route, navigation }: any) {
       {/* Opening Stock */}
       <Section title="📦 Opening Stock">
         <DataRow label="Milk" value={`${report.openingStock?.milk || 0} L`} />
-        <DataRow label="Sugar" value={`${report.openingStock?.sugar || 0} kg`} />
-        <DataRow label="Tea Leaves" value={`${report.openingStock?.teaLeaves || 0} g`} />
         <DataRow label="Paper Cups" value={String(report.openingStock?.cups || 0)} />
         <DataRow label="Kulhad Cups" value={String(report.openingStock?.kulhadCups || 0)} />
-        <DataRow label="Veg Momo Packets" value={String(report.openingStock?.vegMomoPackets || 0)} />
-        <DataRow label="Paneer Momo Packets" value={String(report.openingStock?.paneerMomoPackets || 0)} />
+        <DataRow label="Veg Momo" value={`${report.openingStock?.vegMomoPackets || 0} plates`} />
+        <DataRow label="Paneer Momo" value={`${report.openingStock?.paneerMomoPackets || 0} plates`} />
       </Section>
 
       {/* Closing Stock */}
       <Section title="📊 Closing Stock">
         <DataRow label="Milk" value={`${report.closingStock?.milk || 0} L`} />
-        <DataRow label="Sugar" value={`${report.closingStock?.sugar || 0} kg`} />
-        <DataRow label="Tea Leaves" value={`${report.closingStock?.teaLeaves || 0} g`} />
         <DataRow label="Paper Cups" value={String(report.closingStock?.cups || 0)} />
         <DataRow label="Kulhad Cups" value={String(report.closingStock?.kulhadCups || 0)} />
-        <DataRow label="Veg Momo Packets" value={String(report.closingStock?.vegMomoPackets || 0)} />
-        <DataRow label="Paneer Momo Packets" value={String(report.closingStock?.paneerMomoPackets || 0)} />
+        <DataRow label="Veg Momo" value={`${report.closingStock?.vegMomoPackets || 0} plates`} />
+        <DataRow label="Paneer Momo" value={`${report.closingStock?.paneerMomoPackets || 0} plates`} />
       </Section>
 
       {/* Computed */}
@@ -359,6 +370,15 @@ const styles = StyleSheet.create({
   date: { fontSize: FONT_SIZE.sm, color: COLORS.muted, marginTop: 4 },
   statusBadge: { borderRadius: BORDER_RADIUS.full, paddingHorizontal: 12, paddingVertical: 4 },
   statusText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
+
+  backfillBanner: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm,
+    backgroundColor: COLORS.warningBg, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md, marginHorizontal: SPACING.lg, marginTop: SPACING.md,
+    borderWidth: 1, borderColor: COLORS.warning,
+  },
+  backfillIcon: { fontSize: 16, marginTop: 1 },
+  backfillText: { flex: 1, fontSize: FONT_SIZE.sm, color: COLORS.warning, lineHeight: 20, fontWeight: '600' },
 
   kpiRow: { flexDirection: 'row', padding: SPACING.lg, gap: SPACING.sm },
   miniKpi: {

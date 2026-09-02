@@ -294,3 +294,35 @@ describe('computeReportMetrics — cross-check against backend on shared scenari
     );
   });
 });
+
+describe('non-unit sales (snacks and cigarettes)', () => {
+  it('does not let side sales inflate the revenue-per-cup check', () => {
+    // ₹450 of chai plus ₹600 of cigarettes: per-cup is still ₹15, not ₹35
+    const report = baseline({
+      sales: { regularCups: 30, specialCups: 0, kulhadCups: 0, vegMomoPackets: 6, paneerMomoPackets: 6, snacks: 0, cigarettes: 600 },
+      payments: { upi: 700, cash: 350 },
+    });
+    const { computed, flags } = computeReportMetrics(report);
+
+    expect(computed.revenuePerCup).toBe(15);
+    expect(flagTypes({ computed, flags })).not.toContain('revenue_mismatch');
+  });
+
+  it('still reports the full amount collected', () => {
+    const report = baseline({
+      sales: { regularCups: 30, specialCups: 0, kulhadCups: 0, vegMomoPackets: 6, paneerMomoPackets: 6, snacks: 100, cigarettes: 600 },
+      payments: { upi: 700, cash: 450 },
+    });
+    const { computed } = computeReportMetrics(report);
+    expect(computed.totalRevenue).toBe(1150);
+  });
+
+  it('still flags a genuinely wrong per-cup rate once side sales are netted out', () => {
+    const report = baseline({
+      sales: { regularCups: 10, specialCups: 0, kulhadCups: 0, vegMomoPackets: 6, paneerMomoPackets: 6, snacks: 0, cigarettes: 100 },
+      payments: { upi: 900, cash: 0 },
+    });
+    // ₹800 net over 10 cups = ₹80/cup, past the ₹60 ceiling the check allows
+    expect(flagTypes(computeReportMetrics(report))).toContain('revenue_mismatch');
+  });
+});

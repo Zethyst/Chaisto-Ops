@@ -1,7 +1,9 @@
 const express = require('express');
 const { body, validationResult, query } = require('express-validator');
 const Report = require('../models/Report');
+const ReportDraft = require('../models/ReportDraft');
 const { Stall } = require('../models/Stall');
+const User = require('../models/User');
 const { authenticate, authorize, adminOnly, adminOrModerator, allRoles } = require('../middleware/auth');
 const notificationService = require('../services/notificationService');
 const { deviceService } = require('../services/deviceService');
@@ -68,6 +70,9 @@ router.post('/', ...allRoles, [
 
     await report.save(); // pre-save middleware computes anti-cheat metrics
 
+    // The draft has served its purpose — the submitted report is now the record
+    await ReportDraft.deleteOne({ staffId: req.user._id, date });
+
     // Send notifications
     await notificationService.notifyAdminReportSubmitted(report, req.user.name);
     if (report.status === 'flagged') {
@@ -79,6 +84,77 @@ router.post('/', ...allRoles, [
     if (err.code === 11000) return res.status(409).json({ error: 'Duplicate report for this date' });
     console.error('Submit report error:', err);
     res.status(500).json({ error: 'Could not submit report' });
+  }
+});
+
+// ─── POST /reports/backfill — Admin files a report on a staff member's behalf ─
+// For days a staff member never submitted. Photos and GPS cannot be recreated
+// after the fact, so both are skipped; the report is stamped with who entered
+// it so it is never mistaken for a first-hand submission.
+router.post('/backfill', ...adminOrModerator, [
+  body('staffId').notEmpty().withMessage('staffId required'),
+  body('stallId').notEmpty().withMessage('stallId required'),
+  body('date').matches(/^\d{4}-\d{2}-\d{2}$/).withMessage('Date must be YYYY-MM-DD'),
+  // Photos are optional here, but anything supplied must be a hosted URL —
+  // the client uploads to Cloudinary first and sends back the secure URL
+  body('photos.cash').optional({ values: 'falsy' }).isURL().withMessage('Cash photo must be an uploaded URL'),
+  body('photos.stock').optional({ values: 'falsy' }).isURL().withMessage('Stock photo must be an uploaded URL'),
+  body('photos.milkPacket').optional({ values: 'falsy' }).isURL().withMessage('Milk packet photo must be an uploaded URL'),
+  body('photos.cartClosing').optional({ values: 'falsy' }).isURL().withMessage('Cart closing photo must be an uploaded URL'),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+  const { staffId, stallId, date } = req.body;
+
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    if (date > today) return res.status(400).json({ error: 'Cannot backfill a future date' });
+
+    const existing = await Report.findOne({ staffId, date });
+    if (existing) {
+      return res.status(409).json({ error: 'A report already exists for this staff member and date', reportId: existing._id });
+    }
+
+    const staff = await User.findById(staffId);
+    if (!staff) return res.status(404).json({ error: 'Staff member not found' });
+
+    const report = new Report({
+      ...req.body,
+      staffId,
+      stallId,
+      staffName: staff.name,
+      // Backdated to the end of the day being recorded, not "now", so the
+      // report sorts and aggregates alongside that day's real reports
+      submittedAt: new Date(`${date}T21:00:00.000Z`),
+      photos: req.body.photos || {},
+      location: req.body.location || { latitude: 0, longitude: 0 },
+      isBackfill: true,
+      enteredById: req.user._id,
+      enteredByName: req.user.name,
+    });
+
+    await report.save(); // pre-save middleware still computes anti-cheat metrics
+
+    // A draft the staff had half-finished for that day is now superseded
+    await ReportDraft.deleteOne({ staffId, date });
+
+    await AuditLog.create({
+      actorId: req.user._id,
+      actorName: req.user.name,
+      actorRole: req.user.role,
+      action: 'report_backfilled',
+      entity: 'Report',
+      entityId: report._id,
+      details: { staffId, staffName: staff.name, date },
+      ip: req.ip,
+    }).catch(() => {}); // non-blocking
+
+    res.status(201).json(report);
+  } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ error: 'Duplicate report for this date' });
+    console.error('Backfill report error:', err);
+    res.status(500).json({ error: 'Could not save backfilled report' });
   }
 });
 
@@ -119,6 +195,63 @@ router.get('/', ...allRoles, async (req, res) => {
     res.json({ reports, total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) });
   } catch (err) {
     res.status(500).json({ error: 'Could not fetch reports' });
+  }
+});
+
+// ─── GET /reports/draft — Resume an in-progress report ───────────────────────
+router.get('/draft', ...allRoles, async (req, res) => {
+  const staffId = req.user.role === 'staff' ? req.user._id : (req.query.staffId || req.user._id);
+  const date = req.query.date || new Date().toISOString().split('T')[0];
+
+  try {
+    const draft = await ReportDraft.findOne({ staffId, date });
+    res.json(draft ? { ...draft.data, updatedAt: draft.updatedAt } : null);
+  } catch {
+    res.status(500).json({ error: 'Could not fetch draft' });
+  }
+});
+
+// ─── PUT /reports/draft — Autosave an in-progress report ─────────────────────
+// Called as the staff fills each field, so nothing entered is lost if the app
+// closes and the report can be finished later from any device.
+router.put('/draft', ...allRoles, [
+  body('date').matches(/^\d{4}-\d{2}-\d{2}$/).withMessage('Date must be YYYY-MM-DD'),
+  body('data').isObject().withMessage('data required'),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+  const { date, stallId, data } = req.body;
+
+  try {
+    // Once submitted the report is locked — don't keep a stale draft alive
+    const submitted = await Report.findOne({ staffId: req.user._id, date });
+    if (submitted) {
+      await ReportDraft.deleteOne({ staffId: req.user._id, date });
+      return res.status(409).json({ error: 'Report already submitted for this date', reportId: submitted._id });
+    }
+
+    const draft = await ReportDraft.findOneAndUpdate(
+      { staffId: req.user._id, date },
+      { staffId: req.user._id, stallId: stallId || req.user.stallId, date, data },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    res.json({ savedAt: draft.updatedAt });
+  } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ error: 'Draft conflict — retry' });
+    console.error('Save draft error:', err);
+    res.status(500).json({ error: 'Could not save draft' });
+  }
+});
+
+// ─── DELETE /reports/draft — Discard an in-progress report ───────────────────
+router.delete('/draft', ...allRoles, async (req, res) => {
+  const date = req.query.date || new Date().toISOString().split('T')[0];
+  try {
+    await ReportDraft.deleteOne({ staffId: req.user._id, date });
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: 'Could not discard draft' });
   }
 });
 
@@ -204,6 +337,55 @@ router.patch('/:id/review', ...adminOrModerator, async (req, res) => {
     res.json(report);
   } catch {
     res.status(500).json({ error: 'Could not update report' });
+  }
+});
+
+// ─── PATCH /reports/:id/photos — Attach an optional photo after submission ───
+// The three required photos are locked at submission time; only optional ones
+// (the cart-closing shot, taken when the stall actually shuts) can be added
+// later, and only once.
+const OPTIONAL_PHOTO_KEYS = ['cartClosing'];
+
+router.patch('/:id/photos', ...allRoles, [
+  body('category').isIn(OPTIONAL_PHOTO_KEYS).withMessage('Only optional photos can be added after submission'),
+  body('url').isURL().withMessage('Valid photo URL required'),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+  const { category, url } = req.body;
+
+  try {
+    const report = await Report.findById(req.params.id);
+    if (!report) return res.status(404).json({ error: 'Report not found' });
+
+    // Staff may only add to their own report; admins and moderators to any
+    if (req.user.role === 'staff' && report.staffId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'You can only add photos to your own report' });
+    }
+    if (report.photos?.[category]) {
+      return res.status(409).json({ error: 'This photo has already been added' });
+    }
+
+    report.photos[category] = url;
+    report.markModified('photos');
+    await report.save();
+
+    await AuditLog.create({
+      actorId: req.user._id,
+      actorName: req.user.name,
+      actorRole: req.user.role,
+      action: 'report_photo_added',
+      entity: 'Report',
+      entityId: req.params.id,
+      details: { category, staffName: report.staffName },
+      ip: req.ip,
+    }).catch(() => {}); // non-blocking
+
+    res.json(report);
+  } catch (err) {
+    console.error('Add report photo error:', err);
+    res.status(500).json({ error: 'Could not add photo' });
   }
 });
 

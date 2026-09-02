@@ -85,6 +85,14 @@ export default function ReportsListScreen({ navigation }: any) {
         </TouchableOpacity>
       </View>
 
+      {/* Backfill entry point — for days nobody filed a report */}
+      <TouchableOpacity
+        style={styles.backfillBtn}
+        onPress={() => { haptics.light(); navigation.navigate('BackfillReport'); }}
+      >
+        <Text style={styles.backfillBtnText}>＋  Add a past report</Text>
+      </TouchableOpacity>
+
       {/* Status Filter Pills */}
       <View style={styles.filterRow}>
         {STATUS_FILTERS.map((f) => (
@@ -156,6 +164,14 @@ export default function ReportsListScreen({ navigation }: any) {
                   ? `No staff submitted a report on ${selectedDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })}`
                   : `Try a different filter`}
               </Text>
+              {reports.length === 0 && (
+                <TouchableOpacity
+                  style={styles.emptyAction}
+                  onPress={() => { haptics.light(); navigation.navigate('BackfillReport'); }}
+                >
+                  <Text style={styles.emptyActionText}>Enter it for them</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             filtered.map((report) => (
@@ -309,6 +325,19 @@ const styles = StyleSheet.create({
   summaryValue: { fontSize: FONT_SIZE.lg, fontWeight: '800' },
   summaryLabel: { fontSize: 9, color: COLORS.muted, fontWeight: '700', letterSpacing: 0.8, marginTop: 2 },
   summaryDivider: { width: 1, backgroundColor: COLORS.borderLight, marginVertical: SPACING.sm },
+
+  backfillBtn: {
+    marginHorizontal: SPACING.xl, marginTop: SPACING.md,
+    borderWidth: 1.5, borderColor: COLORS.primary, borderStyle: 'dashed',
+    borderRadius: BORDER_RADIUS.md, paddingVertical: SPACING.sm, alignItems: 'center',
+  },
+  backfillBtnText: { color: COLORS.primary, fontWeight: '700', fontSize: FONT_SIZE.sm },
+
+  emptyAction: {
+    marginTop: SPACING.lg, backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.md, paddingHorizontal: SPACING.xl, paddingVertical: SPACING.md,
+  },
+  emptyActionText: { color: '#fff', fontWeight: '800', fontSize: FONT_SIZE.md },
 
   empty: { alignItems: 'center', paddingVertical: 60 },
   emptyIcon: { fontSize: 52, marginBottom: SPACING.lg },

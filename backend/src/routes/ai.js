@@ -204,7 +204,8 @@ router.post('/price-optimize', ...adminOrModerator, async (req, res) => {
     };
 
     const itemLines = menuItems.map(item => {
-      const field = FIELD_MAP[item.key];
+      // Portioned items arrive as `vegMomo::half` — sales are tracked per item
+      const field = FIELD_MAP[item.key.split('::')[0]];
       const qty = field ? salesAgg[field] : 0;
       const unit = field?.includes('Momo') ? 'packets' : 'cups';
       return `- ${item.name}: ${qty} ${unit} sold in last 30 days at ₹${item.price} each`;

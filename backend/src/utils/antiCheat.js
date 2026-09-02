@@ -24,8 +24,13 @@ function computeAntiCheatMetrics(report) {
   const totalCups = (sales.regularCups || 0) + (sales.specialCups || 0) + (sales.kulhadCups || 0);
   const totalMomoPackets = (sales.vegMomoPackets || 0) + (sales.paneerMomoPackets || 0);
   const totalRevenue = (payments.upi || 0) + (payments.cash || 0);
-  const revenuePerCup = totalCups > 0 ? totalRevenue / totalCups : 0;
-  const revenuePerMomoPacket = totalMomoPackets > 0 ? totalRevenue / totalMomoPackets : 0;
+  // Snacks and cigarettes are sold by rupee value, not by the cup or plate, so
+  // they are netted out before checking the per-unit rate — otherwise a stall
+  // with healthy side sales looks like it is overcharging for chai.
+  const nonUnitSales = (sales.snacks || 0) + (sales.cigarettes || 0);
+  const unitRevenue = Math.max(0, totalRevenue - nonUnitSales);
+  const revenuePerCup = totalCups > 0 ? unitRevenue / totalCups : 0;
+  const revenuePerMomoPacket = totalMomoPackets > 0 ? unitRevenue / totalMomoPackets : 0;
   const upiRatio = totalRevenue > 0 ? payments.upi / totalRevenue : 0;
   const cupsDeviation = expectedCups > 0 ? Math.abs(totalCups - expectedCups) / expectedCups : 0;
 
@@ -68,7 +73,7 @@ function computeAntiCheatMetrics(report) {
     flags.push({
       type: 'momo_stock_mismatch',
       severity: momoStockDeviation > MISMATCH_HIGH_THRESHOLD ? 'high' : 'medium',
-      message: `${totalMomoPackets} momo packets sold but stock suggests ~${Math.round(expectedMomoFromStock)} packets (${(momoStockDeviation * 100).toFixed(0)}% off)`,
+      message: `${totalMomoPackets} momo plates sold but stock suggests ~${Math.round(expectedMomoFromStock)} plates (${(momoStockDeviation * 100).toFixed(0)}% off)`,
       value: totalMomoPackets,
       expectedValue: Math.round(expectedMomoFromStock),
     });
@@ -92,7 +97,7 @@ function computeAntiCheatMetrics(report) {
     flags.push({
       type: 'momo_revenue_mismatch',
       severity: 'high',
-      message: `Revenue per momo packet ₹${revenuePerMomoPacket.toFixed(0)} is outside normal range (₹${MIN_PRICE_MOMO}–₹${MAX_PRICE_MOMO})`,
+      message: `Revenue per momo plate ₹${revenuePerMomoPacket.toFixed(0)} is outside normal range (₹${MIN_PRICE_MOMO}–₹${MAX_PRICE_MOMO})`,
       value: revenuePerMomoPacket,
     });
   }

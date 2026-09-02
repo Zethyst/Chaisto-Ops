@@ -8,7 +8,8 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
 import {
   fetchMenuConfig, saveMenuItems,
-  addMenuItem, updateMenuItem, removeMenuItem, MOMO_ITEM_KEYS,
+  addMenuItem, updateMenuItem, updateMenuPortion, setItemPortioned,
+  setSupplyUnits, removeMenuItem, MOMO_ITEM_KEYS, getSellableUnits, splitUnitKey,
 } from '../../store/slices/menuSlice';
 import { MenuItem } from '../../types';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
@@ -22,10 +23,16 @@ export default function MenuPricingScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch<AppDispatch>();
   const { user } = useSelector((s: RootState) => s.auth);
-  const { items, isSaving } = useSelector((s: RootState) => s.menu);
+  const { items, isSaving, milkCostPerPacket, milkMlPerPacket, momoPiecesPerPlate } = useSelector((s: RootState) => s.menu);
 
   // Snapshot of items as last saved/fetched — used to detect unsaved changes
   const [savedItems, setSavedItems] = useState<MenuItem[]>(items);
+  const [savedUnits, setSavedUnits] = useState({
+    cost: milkCostPerPacket, ml: milkMlPerPacket, pieces: momoPiecesPerPlate,
+  });
+  const [milkCostInput, setMilkCostInput] = useState(String(milkCostPerPacket));
+  const [milkMlInput, setMilkMlInput] = useState(String(milkMlPerPacket));
+  const [momoPiecesInput, setMomoPiecesInput] = useState(String(momoPiecesPerPlate));
   // Resolved stall ID — user.stallId for staff/mod, or first stall for admin
   const [resolvedStallId, setResolvedStallId] = useState<string | null>(user?.stallId || null);
 
@@ -33,6 +40,8 @@ export default function MenuPricingScreen({ navigation }: any) {
   const [editName, setEditName] = useState('');
   const [editPrice, setEditPrice] = useState('');
   const [editRecipe, setEditRecipe] = useState('');
+  // portionKey -> { name, price } while editing a plate-served item
+  const [editPortions, setEditPortions] = useState<Record<string, { name: string; price: string }>>({});
 
   // Add-item form
   const [showAddForm, setShowAddForm] = useState(false);
@@ -55,13 +64,23 @@ export default function MenuPricingScreen({ navigation }: any) {
       dispatch(fetchMenuConfig(stallId)).unwrap()
         .then((cfg: any) => {
           if (cfg?.menuItems?.length > 0) setSavedItems(cfg.menuItems);
+          const cost = cfg?.milkCostPerPacket ?? milkCostPerPacket;
+          const ml = cfg?.milkMlPerPacket ?? milkMlPerPacket;
+          const pieces = cfg?.momoPiecesPerPlate ?? momoPiecesPerPlate;
+          setSavedUnits({ cost, ml, pieces });
+          setMilkCostInput(String(cost));
+          setMilkMlInput(String(ml));
+          setMomoPiecesInput(String(pieces));
         })
         .catch(() => {});
     };
     load();
   }, []);
 
-  const hasChanges = JSON.stringify(items) !== JSON.stringify(savedItems);
+  const unitsChanged = milkCostPerPacket !== savedUnits.cost
+    || milkMlPerPacket !== savedUnits.ml
+    || momoPiecesPerPlate !== savedUnits.pieces;
+  const hasChanges = JSON.stringify(items) !== JSON.stringify(savedItems) || unitsChanged;
 
   const startEdit = (item: MenuItem) => {
     haptics.selection();
@@ -69,18 +88,54 @@ export default function MenuPricingScreen({ navigation }: any) {
     setEditName(item.name);
     setEditPrice(String(item.price));
     setEditRecipe(item.recipe ?? '');
+    setEditPortions(
+      Object.fromEntries((item.portions ?? []).map(p => [p.key, { name: p.name, price: String(p.price) }])),
+    );
   };
 
   const saveEdit = () => {
     if (!editingKey) return;
+    const item = items.find(i => i.key === editingKey);
+    const portions = item?.portions ?? [];
+
+    if (!editName.trim()) {
+      showAlert('Invalid Input', 'Enter a valid item name.');
+      return;
+    }
+
+    if (portions.length > 0) {
+      const parsed = portions.map(p => ({
+        key: p.key,
+        name: (editPortions[p.key]?.name ?? p.name).trim(),
+        price: parseFloat(editPortions[p.key]?.price ?? String(p.price)),
+      }));
+      const bad = parsed.find(p => !p.name || isNaN(p.price) || p.price < 0);
+      if (bad) {
+        showAlert('Invalid Input', 'Enter a valid name and price for every plate size.');
+        return;
+      }
+      haptics.medium();
+      dispatch(updateMenuItem({ key: editingKey, name: editName.trim(), recipe: editRecipe.trim() }));
+      parsed.forEach(p => dispatch(updateMenuPortion({
+        itemKey: editingKey, portionKey: p.key, name: p.name, price: p.price,
+      })));
+      setEditingKey(null);
+      return;
+    }
+
     const price = parseFloat(editPrice);
-    if (!editName.trim() || isNaN(price) || price < 0) {
+    if (isNaN(price) || price < 0) {
       showAlert('Invalid Input', 'Enter a valid name and price.');
       return;
     }
     haptics.medium();
     dispatch(updateMenuItem({ key: editingKey, name: editName.trim(), price, recipe: editRecipe.trim() }));
     setEditingKey(null);
+  };
+
+  const handleTogglePortioned = (item: MenuItem) => {
+    haptics.selection();
+    dispatch(setItemPortioned({ key: item.key, portioned: !item.portions?.length }));
   };
 
   const cancelEdit = () => {
@@ -129,25 +184,35 @@ export default function MenuPricingScreen({ navigation }: any) {
     if (!resolvedStallId || !hasChanges) return;
     haptics.medium();
 
+    const priceLabel = (item?: MenuItem) => {
+      if (!item) return '';
+      if (item.portions?.length) return item.portions.map(p => `${p.name} ₹${p.price}`).join(', ');
+      return `₹${item.price}`;
+    };
+
     const changedItems = items.filter((item) => {
       const prev = savedItems.find(s => s.key === item.key);
-      return !prev || prev.name !== item.name || prev.price !== item.price || prev.active !== item.active;
+      return !prev || JSON.stringify(prev) !== JSON.stringify(item);
     });
     const addedItems = items.filter(item => !savedItems.find(s => s.key === item.key));
     const removedItems = savedItems.filter(s => !items.find(i => i.key === s.key));
 
     const lines: string[] = [];
-    addedItems.forEach(i => lines.push(`+ Added: ${i.name} (₹${i.price})`));
+    addedItems.forEach(i => lines.push(`+ Added: ${i.name} (${priceLabel(i)})`));
     removedItems.forEach(i => lines.push(`− Removed: ${i.name}`));
     changedItems
       .filter(i => !addedItems.find(a => a.key === i.key))
       .forEach(i => {
         const prev = savedItems.find(s => s.key === i.key)!;
-        if (prev.price !== i.price) lines.push(`✏️ ${i.name}: ₹${prev.price} → ₹${i.price}`);
+        if (priceLabel(prev) !== priceLabel(i)) lines.push(`✏️ ${i.name}: ${priceLabel(prev)} → ${priceLabel(i)}`);
         else if (!i.active && prev.active) lines.push(`🚫 Disabled: ${i.name}`);
         else if (i.active && !prev.active) lines.push(`✅ Enabled: ${i.name}`);
-        else lines.push(`✏️ Renamed to: ${i.name}`);
+        else if (prev.name !== i.name) lines.push(`✏️ Renamed to: ${i.name}`);
+        else lines.push(`✏️ Updated: ${i.name}`);
       });
+    if (milkCostPerPacket !== savedUnits.cost) lines.push(`🥛 Milk packet: ₹${savedUnits.cost} → ₹${milkCostPerPacket}`);
+    if (milkMlPerPacket !== savedUnits.ml) lines.push(`🥛 Packet size: ${savedUnits.ml}ml → ${milkMlPerPacket}ml`);
+    if (momoPiecesPerPlate !== savedUnits.pieces) lines.push(`🥟 Pieces per full plate: ${savedUnits.pieces} → ${momoPiecesPerPlate}`);
 
     showAlert({
       title: 'Save Menu Changes',
@@ -158,10 +223,13 @@ export default function MenuPricingScreen({ navigation }: any) {
           text: 'Save',
           onPress: () => {
             haptics.heavy();
-            dispatch(saveMenuItems({ stallId: resolvedStallId!, items }))
+            dispatch(saveMenuItems({
+              stallId: resolvedStallId!, items, milkCostPerPacket, milkMlPerPacket, momoPiecesPerPlate,
+            }))
               .unwrap()
               .then(() => {
                 setSavedItems(items);
+                setSavedUnits({ cost: milkCostPerPacket, ml: milkMlPerPacket, pieces: momoPiecesPerPlate });
                 showAlert('Menu Saved', 'Menu and pricing updated successfully.');
               })
               .catch((err: string) => {
@@ -183,7 +251,14 @@ export default function MenuPricingScreen({ navigation }: any) {
     setIsOptimizing(true);
     setShowOptimizer(true);
     try {
-      const suggestions = await aiService.getPriceOptimizations(resolvedStallId ?? undefined, items);
+      // Portioned items are sent one entry per plate size so the model prices
+      // each serving; the `itemKey::portionKey` form maps back on apply.
+      const optimizerItems = items.flatMap((item) =>
+        item.portions?.length
+          ? item.portions.map(p => ({ ...item, key: `${item.key}::${p.key}`, name: `${item.name} (${p.name})`, price: p.price, portions: undefined }))
+          : [item]
+      );
+      const suggestions = await aiService.getPriceOptimizations(resolvedStallId ?? undefined, optimizerItems);
       setOptimizations(suggestions);
     } catch {
       showAlert('AI Error', 'Could not generate price suggestions. Ensure the server has a valid ANTHROPIC_API_KEY.');
@@ -195,7 +270,12 @@ export default function MenuPricingScreen({ navigation }: any) {
 
   const applyOptimization = (suggestion: PriceSuggestion) => {
     haptics.medium();
-    dispatch(updateMenuItem({ key: suggestion.itemKey, price: suggestion.suggestedPrice }));
+    const { itemKey, portionKey } = splitUnitKey(suggestion.itemKey);
+    if (portionKey) {
+      dispatch(updateMenuPortion({ itemKey, portionKey, price: suggestion.suggestedPrice }));
+    } else {
+      dispatch(updateMenuItem({ key: itemKey, price: suggestion.suggestedPrice }));
+    }
     setOptimizations(prev => prev.filter(s => s.itemKey !== suggestion.itemKey));
   };
 
@@ -264,15 +344,55 @@ export default function MenuPricingScreen({ navigation }: any) {
                   placeholderTextColor={COLORS.muted}
                   autoFocus
                 />
-                <Text style={styles.editLabel}>PRICE (₹)</Text>
-                <TextInput
-                  style={styles.editInput}
-                  value={editPrice}
-                  onChangeText={setEditPrice}
-                  keyboardType="decimal-pad"
-                  placeholder="0"
-                  placeholderTextColor={COLORS.muted}
-                />
+                {item.portions?.length ? (
+                  <>
+                    <Text style={styles.editLabel}>PLATE SIZES & PRICES</Text>
+                    {item.portions.map((p) => (
+                      <View key={p.key} style={styles.portionEditRow}>
+                        <TextInput
+                          style={[styles.editInput, styles.portionNameInput]}
+                          value={editPortions[p.key]?.name ?? p.name}
+                          onChangeText={(text) => setEditPortions(prev => ({
+                            ...prev,
+                            [p.key]: { name: text, price: prev[p.key]?.price ?? String(p.price) },
+                          }))}
+                          placeholder="Half Plate"
+                          placeholderTextColor={COLORS.muted}
+                        />
+                        <View style={styles.portionPriceWrap}>
+                          <Text style={styles.portionRupee}>₹</Text>
+                          <TextInput
+                            style={styles.portionPriceInput}
+                            value={editPortions[p.key]?.price ?? String(p.price)}
+                            onChangeText={(text) => setEditPortions(prev => ({
+                              ...prev,
+                              [p.key]: { name: prev[p.key]?.name ?? p.name, price: text },
+                            }))}
+                            keyboardType="decimal-pad"
+                            placeholder="0"
+                            placeholderTextColor={COLORS.muted}
+                          />
+                        </View>
+                      </View>
+                    ))}
+                    <Text style={styles.portionHint}>
+                      A half plate counts as half a packet against stock, so plate sales still
+                      reconcile with opening/closing stock.
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.editLabel}>PRICE (₹)</Text>
+                    <TextInput
+                      style={styles.editInput}
+                      value={editPrice}
+                      onChangeText={setEditPrice}
+                      keyboardType="decimal-pad"
+                      placeholder="0"
+                      placeholderTextColor={COLORS.muted}
+                    />
+                  </>
+                )}
                 <Text style={styles.editLabel}>RECIPE / INSTRUCTIONS (shown to staff)</Text>
                 <TextInput
                   style={styles.recipeInput}
@@ -307,9 +427,25 @@ export default function MenuPricingScreen({ navigation }: any) {
                       </View>
                     )}
                   </View>
-                  <Text style={[styles.itemPrice, !item.active && styles.itemPriceInactive]}>
-                    ₹{item.price} per {MOMO_ITEM_KEYS.includes(item.key) ? 'packet' : 'cup'}
-                  </Text>
+                  {item.portions?.length ? (
+                    <View style={styles.portionList}>
+                      {item.portions.map((p) => (
+                        <View key={p.key} style={styles.portionTag}>
+                          <Text style={[styles.portionTagName, !item.active && styles.itemPriceInactive]}>{p.name}</Text>
+                          <Text style={[styles.portionTagPrice, !item.active && styles.itemPriceInactive]}>₹{p.price}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={[styles.itemPrice, !item.active && styles.itemPriceInactive]}>
+                      ₹{item.price} per {MOMO_ITEM_KEYS.includes(item.key) ? 'packet' : 'cup'}
+                    </Text>
+                  )}
+                  <TouchableOpacity style={styles.plateToggle} onPress={() => handleTogglePortioned(item)}>
+                    <Text style={styles.plateToggleText}>
+                      {item.portions?.length ? '↩︎ Use a single price' : '🍽 Sell as half / full plate'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
                 <View style={styles.itemActions}>
                   <Switch
@@ -384,16 +520,85 @@ export default function MenuPricingScreen({ navigation }: any) {
           </TouchableOpacity>
         )}
 
+        {/* Supply pricing & units — non-menu values the report entry screens use */}
+        <Text style={styles.sectionTitle}>SUPPLY PRICING & UNITS</Text>
+        <View style={styles.supplyCard}>
+          <Text style={styles.supplyTitle}>🥛 Milk Packet</Text>
+          <Text style={styles.supplySub}>Used for the milk expense counter on the staff tally screen.</Text>
+          <View style={styles.supplyRow}>
+            <View style={styles.supplyField}>
+              <Text style={styles.editLabel}>COST PER PACKET (₹)</Text>
+              <TextInput
+                style={styles.editInput}
+                value={milkCostInput}
+                onChangeText={(text) => {
+                  setMilkCostInput(text);
+                  const n = parseFloat(text);
+                  if (!isNaN(n) && n >= 0) dispatch(setSupplyUnits({ milkCostPerPacket: n }));
+                }}
+                keyboardType="decimal-pad"
+                placeholder="30"
+                placeholderTextColor={COLORS.muted}
+              />
+            </View>
+            <View style={styles.supplyField}>
+              <Text style={styles.editLabel}>PACKET SIZE (ML)</Text>
+              <TextInput
+                style={styles.editInput}
+                value={milkMlInput}
+                onChangeText={(text) => {
+                  setMilkMlInput(text);
+                  const n = parseFloat(text);
+                  if (!isNaN(n) && n > 0) dispatch(setSupplyUnits({ milkMlPerPacket: n }));
+                }}
+                keyboardType="decimal-pad"
+                placeholder="500"
+                placeholderTextColor={COLORS.muted}
+              />
+            </View>
+          </View>
+
+          <View style={styles.supplyDivider} />
+
+          <Text style={styles.supplyTitle}>🥟 Momo Plate Size</Text>
+          <Text style={styles.supplySub}>
+            Staff count momos in pieces on the daily report; this converts them into plates sold.
+          </Text>
+          <View style={styles.supplyRow}>
+            <View style={styles.supplyField}>
+              <Text style={styles.editLabel}>PIECES PER FULL PLATE</Text>
+              <TextInput
+                style={styles.editInput}
+                value={momoPiecesInput}
+                onChangeText={(text) => {
+                  setMomoPiecesInput(text);
+                  const n = parseFloat(text);
+                  if (!isNaN(n) && n > 0) dispatch(setSupplyUnits({ momoPiecesPerPlate: n }));
+                }}
+                keyboardType="decimal-pad"
+                placeholder="10"
+                placeholderTextColor={COLORS.muted}
+              />
+            </View>
+            <View style={styles.supplyField} />
+          </View>
+        </View>
+
         {/* Preview card */}
         <View style={styles.previewCard}>
           <Text style={styles.previewTitle}>MENU PREVIEW</Text>
           <Text style={styles.previewSub}>How staff sees it during sales entry</Text>
-          {activeItems.sort((a, b) => a.sortOrder - b.sortOrder).map((item) => (
-            <View key={item.key} style={styles.previewRow}>
-              <Text style={styles.previewItem}>{MOMO_ITEM_KEYS.includes(item.key) ? '🥟' : '☕'} {item.name}</Text>
-              <Text style={styles.previewPrice}>₹{item.price}</Text>
-            </View>
-          ))}
+          {activeItems.sort((a, b) => a.sortOrder - b.sortOrder).flatMap((item) =>
+            getSellableUnits(item).map((unit) => (
+              <View key={unit.unitKey} style={styles.previewRow}>
+                <Text style={styles.previewItem}>
+                  {MOMO_ITEM_KEYS.includes(item.key) ? '🥟' : '☕'} {item.name}
+                  {unit.portionName ? ` · ${unit.portionName}` : ''}
+                </Text>
+                <Text style={styles.previewPrice}>₹{unit.price}</Text>
+              </View>
+            ))
+          )}
           {activeItems.length === 0 && (
             <Text style={styles.previewEmpty}>No active items — enable some above</Text>
           )}
@@ -518,6 +723,40 @@ const styles = StyleSheet.create({
   defaultBadgeText: { fontSize: 9, fontWeight: '800', color: COLORS.primaryLight, letterSpacing: 0.5 },
   itemPrice: { fontSize: FONT_SIZE.md, color: COLORS.primary, fontWeight: '600' },
   itemPriceInactive: { color: COLORS.muted },
+
+  portionList: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+  portionTag: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: COLORS.primaryBg, borderRadius: BORDER_RADIUS.full,
+    paddingHorizontal: SPACING.md, paddingVertical: 3,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  portionTagName: { fontSize: FONT_SIZE.sm, color: COLORS.primaryLight, fontWeight: '600' },
+  portionTagPrice: { fontSize: FONT_SIZE.sm, color: COLORS.primary, fontWeight: '800' },
+  plateToggle: { marginTop: 6, alignSelf: 'flex-start' },
+  plateToggleText: { fontSize: 11, fontWeight: '700', color: COLORS.primaryLight },
+
+  portionEditRow: { flexDirection: 'row', gap: SPACING.sm, alignItems: 'center' },
+  portionNameInput: { flex: 1 },
+  portionPriceWrap: {
+    flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: BORDER_RADIUS.sm, backgroundColor: COLORS.surface,
+    paddingHorizontal: SPACING.md, minWidth: 96, minHeight: 48,
+  },
+  portionRupee: { fontSize: FONT_SIZE.md, color: COLORS.primaryLight, fontWeight: '700', marginRight: 4 },
+  portionPriceInput: { flex: 1, fontSize: FONT_SIZE.md, color: COLORS.black, fontWeight: '700' },
+  portionHint: { fontSize: 11, color: COLORS.muted, marginTop: SPACING.sm, lineHeight: 16 },
+
+  supplyCard: {
+    backgroundColor: COLORS.white, borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg, marginBottom: SPACING.xl,
+    borderWidth: 1, borderColor: COLORS.border, ...SHADOWS.sm,
+  },
+  supplyTitle: { fontSize: FONT_SIZE.md, fontWeight: '700', color: COLORS.black },
+  supplySub: { fontSize: FONT_SIZE.sm, color: COLORS.muted, marginTop: 2 },
+  supplyRow: { flexDirection: 'row', gap: SPACING.md },
+  supplyDivider: { height: 1, backgroundColor: COLORS.borderLight, marginVertical: SPACING.lg },
+  supplyField: { flex: 1 },
 
   itemActions: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   editBtn: { padding: 6 },

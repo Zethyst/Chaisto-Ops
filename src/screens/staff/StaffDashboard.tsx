@@ -7,7 +7,7 @@ import { showAlert } from '../../components/AppAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
-import { fetchTodayReport, startNewReport } from '../../store/slices/reportSlice';
+import { fetchTodayReport, resumeOrStartReport } from '../../store/slices/reportSlice';
 import { fetchMenuConfig, ensureFreshTally } from '../../store/slices/menuSlice';
 import { reportService } from '../../services/reportService';
 import { payrollService } from '../../services/payrollService';
@@ -110,12 +110,20 @@ export default function StaffDashboard({ navigation }: any) {
       return;
     }
     haptics.medium();
-    dispatch(startNewReport({
+    // Picks up an unfinished report — local or autosaved on the server
+    dispatch(resumeOrStartReport({
       staffId: user!.id,
       stallId: user!.stallId!,
       stallName: user!.stallName || 'Chaisto Stall',
-    }));
-    navigation.navigate('DailyReport');
+    })).finally(() => navigation.navigate('DailyReport'));
+  };
+
+  const addCartClosingPhoto = () => {
+    haptics.medium();
+    navigation.navigate('CameraCapture', {
+      category: 'cartClosing',
+      reportId: (todayReport as any)?._id || todayReport?.id,
+    });
   };
 
   const hour = new Date().getHours();
@@ -190,9 +198,18 @@ export default function StaffDashboard({ navigation }: any) {
           )}
         </View>
         <View style={styles.incomeRight}>
-          <Text style={styles.incomeCupCount}>{payroll?.totalCups || 0}</Text>
-          <Text style={styles.incomeCupLabel}>{t('cups')}</Text>
-          <Text style={styles.incomePerCup}>{t('perCup')}</Text>
+          <View style={styles.incomeStatsRow}>
+            <View style={styles.incomeStat}>
+              <Text style={styles.incomeCupCount}>{payroll?.totalCups || 0}</Text>
+              <Text style={styles.incomeCupLabel}>{t('cups')}</Text>
+            </View>
+            <View style={styles.incomeStatDivider} />
+            <View style={styles.incomeStat}>
+              <Text style={styles.incomeCupCount}>{payroll?.totalMomoPackets || 0}</Text>
+              <Text style={styles.incomeCupLabel}>{t('momos')}</Text>
+            </View>
+          </View>
+          <Text style={styles.incomePerCup}>₹1/cup · ₹5/momo</Text>
         </View>
       </View>
 
@@ -236,6 +253,27 @@ export default function StaffDashboard({ navigation }: any) {
               <Text style={styles.flagText}>⚠️ {todayReport.flags.length} {t('flagsRaised')}</Text>
             </View>
           )}
+        </View>
+      )}
+
+      {/* Cart closing photo — optional, added when the stall actually shuts */}
+      {reportSubmitted && todayReport && !todayReport.photos?.cartClosing && (
+        <TouchableOpacity style={styles.cartPhotoCard} onPress={addCartClosingPhoto} activeOpacity={0.85}>
+          <Text style={styles.cartPhotoIcon}>🛒</Text>
+          <View style={{ flex: 1, marginLeft: SPACING.md }}>
+            <Text style={styles.cartPhotoTitle}>{t('addCartClosingPhoto')}</Text>
+            <Text style={styles.cartPhotoSub}>{t('addCartClosingPhotoSub')}</Text>
+          </View>
+          <Text style={styles.cartPhotoChevron}>›</Text>
+        </TouchableOpacity>
+      )}
+
+      {reportSubmitted && !!todayReport?.photos?.cartClosing && (
+        <View style={[styles.cartPhotoCard, styles.cartPhotoDone]}>
+          <Text style={styles.cartPhotoIcon}>✅</Text>
+          <View style={{ flex: 1, marginLeft: SPACING.md }}>
+            <Text style={styles.cartPhotoTitle}>{t('cartClosingPhotoAdded')}</Text>
+          </View>
         </View>
       )}
 
@@ -370,19 +408,35 @@ const styles = StyleSheet.create({
   // Income card
   incomeCard: {
     margin: SPACING.xl, borderRadius: BORDER_RADIUS.xl, padding: SPACING.xl,
-    backgroundColor: '#0D3D2A', flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#0D3D2A', flexDirection: 'row', alignItems: 'flex-start',
     ...SHADOWS.md,
   },
   incomeLeft: { flex: 1 },
   incomeLabel: { fontSize: FONT_SIZE.sm, color: 'rgba(255,255,255,0.7)', fontWeight: '600' },
   incomeAmount: { fontSize: 38, fontWeight: '900', color: '#4ADE80', marginTop: 2, letterSpacing: -1 },
-  incomeBreakdown: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
+  incomeBreakdown: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginTop: 6 },
   incomeBreakItem: { fontSize: FONT_SIZE.xs, color: 'rgba(255,255,255,0.65)' },
   incomePlus: { fontSize: FONT_SIZE.xs, color: 'rgba(255,255,255,0.4)' },
   incomeRight: { alignItems: 'center', marginLeft: SPACING.lg },
-  incomeCupCount: { fontSize: 32, fontWeight: '900', color: '#4ADE80' },
+  incomeStatsRow: { flexDirection: 'row', alignItems: 'center' },
+  incomeStat: { alignItems: 'center', minWidth: 44 },
+  incomeStatDivider: { width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.15)', marginHorizontal: SPACING.sm },
+  incomeCupCount: { fontSize: 26, fontWeight: '900', color: '#4ADE80' },
   incomeCupLabel: { fontSize: FONT_SIZE.xs, color: 'rgba(255,255,255,0.6)', marginTop: -2 },
-  incomePerCup: { fontSize: 11, color: '#4ADE80', fontWeight: '600', marginTop: 4, backgroundColor: 'rgba(74,222,128,0.15)', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
+  incomePerCup: { fontSize: 11, color: '#4ADE80', fontWeight: '600', marginTop: 6, backgroundColor: 'rgba(74,222,128,0.15)', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
+
+  cartPhotoCard: {
+    flexDirection: 'row', alignItems: 'center',
+    marginHorizontal: SPACING.xl, marginBottom: SPACING.md,
+    backgroundColor: COLORS.white, borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg, borderWidth: 1.5, borderColor: COLORS.primary,
+    borderStyle: 'dashed', ...SHADOWS.sm,
+  },
+  cartPhotoDone: { borderColor: COLORS.success, borderStyle: 'solid' },
+  cartPhotoIcon: { fontSize: 24 },
+  cartPhotoTitle: { fontSize: FONT_SIZE.md, fontWeight: '700', color: COLORS.black },
+  cartPhotoSub: { fontSize: FONT_SIZE.sm, color: COLORS.muted, marginTop: 2 },
+  cartPhotoChevron: { fontSize: 26, color: COLORS.primaryLight, fontWeight: '700' },
 
   statusCard: {
     marginHorizontal: SPACING.xl, marginBottom: SPACING.md,

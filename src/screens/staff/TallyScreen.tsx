@@ -9,17 +9,15 @@ import { RootState, AppDispatch } from '../../store';
 import {
   ensureFreshTally, incrementTally, decrementTally,
   incrementMilkPackets, decrementMilkPackets,
-  setTallyUpi, setTallyCash, setTallyNotes, resetTally,
-  fetchMenuConfig, MOMO_ITEM_KEYS,
+  setTallyUpi, setTallyCash, setTallyNotes, setTallyCigarettes, resetTally,
+  fetchMenuConfig, MOMO_ITEM_KEYS, getSellableUnits,
+  servingsForItem, revenueForItem,
 } from '../../store/slices/menuSlice';
-import { startNewReport, preFillFromTally } from '../../store/slices/reportSlice';
+import { resumeOrStartReport, preFillFromTally } from '../../store/slices/reportSlice';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
 import { haptics } from '../../utils/haptics';
 import { showAlert } from '../../components/AppAlert';
 import { useLanguage } from '../../i18n';
-
-const MILK_ML_PER_PACKET = 500;
-const MILK_COST_PER_PACKET = 30;
 
 // ─── Animated counter button ──────────────────────────────────────────────────
 function CounterButton({ onPress, onLongPress, label, style, textStyle }: any) {
@@ -47,23 +45,51 @@ function CounterButton({ onPress, onLongPress, label, style, textStyle }: any) {
   );
 }
 
-// ─── Counter card ─────────────────────────────────────────────────────────────
-function CounterCard({ item, count, onIncrement, onDecrement, onLongIncrement, onLongDecrement, perCupLabel, onPressRecipe }: any) {
-  const subtotal = count * item.price;
-
+// ─── Counter row ──────────────────────────────────────────────────────────────
+// One −/count/+ control. Portioned items render one of these per serving size.
+function UnitCounter({ count, onIncrement, onDecrement, onLongIncrement, onLongDecrement }: any) {
   const countScale = useRef(new Animated.Value(1)).current;
 
-  const animatePop = () => {
+  const handleIncrement = () => {
+    onIncrement();
     Animated.sequence([
       Animated.spring(countScale, { toValue: 1.3, useNativeDriver: true, speed: 80 }),
       Animated.spring(countScale, { toValue: 1, useNativeDriver: true, speed: 60 }),
     ]).start();
   };
 
-  const handleIncrement = () => {
-    onIncrement();
-    animatePop();
-  };
+  return (
+    <View style={counterStyles.counterRow}>
+      <CounterButton
+        label="−"
+        style={[counterStyles.counterBtn, counterStyles.decrementBtn, count === 0 && counterStyles.counterBtnDisabled]}
+        textStyle={[counterStyles.counterBtnText, count === 0 && { opacity: 0.3 }]}
+        onPress={() => count > 0 && onDecrement()}
+        onLongPress={() => count > 0 && onLongDecrement()}
+      />
+
+      <Animated.View style={[counterStyles.countBox, { transform: [{ scale: countScale }] }]}>
+        <Text style={[counterStyles.countText, count > 0 && counterStyles.countTextActive]}>
+          {count}
+        </Text>
+      </Animated.View>
+
+      <CounterButton
+        label="+"
+        style={[counterStyles.counterBtn, counterStyles.incrementBtn]}
+        textStyle={counterStyles.counterBtnTextPlus}
+        onPress={handleIncrement}
+        onLongPress={onLongIncrement}
+      />
+    </View>
+  );
+}
+
+// ─── Counter card ─────────────────────────────────────────────────────────────
+function CounterCard({ item, units, counters, onIncrement, onDecrement, onLongIncrement, onLongDecrement, unitLabel, onPressRecipe }: any) {
+  const isPortioned = units.length > 1;
+  const totalCount = units.reduce((sum: number, u: any) => sum + (counters[u.unitKey] || 0), 0);
+  const subtotal = units.reduce((sum: number, u: any) => sum + (counters[u.unitKey] || 0) * u.price, 0);
 
   return (
     <View style={counterStyles.card}>
@@ -71,7 +97,9 @@ function CounterCard({ item, count, onIncrement, onDecrement, onLongIncrement, o
         <View style={{ flex: 1 }}>
           <Text style={counterStyles.itemName}>{item.name}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Text style={counterStyles.itemPrice}>₹{item.price} {perCupLabel}</Text>
+            {!isPortioned && (
+              <Text style={counterStyles.itemPrice}>₹{units[0].price} {unitLabel}</Text>
+            )}
             {item.recipe && (
               <TouchableOpacity style={counterStyles.recipeBtn} onPress={onPressRecipe}>
                 <Text style={counterStyles.recipeBtnText}>📖 Recipe</Text>
@@ -79,44 +107,45 @@ function CounterCard({ item, count, onIncrement, onDecrement, onLongIncrement, o
             )}
           </View>
         </View>
-        {count > 0 && (
+        {subtotal > 0 && (
           <View style={counterStyles.subtotalBadge}>
             <Text style={counterStyles.subtotalText}>₹{subtotal}</Text>
           </View>
         )}
       </View>
 
-      <View style={counterStyles.counterRow}>
-        {/* Decrement */}
-        <CounterButton
-          label="−"
-          style={[counterStyles.counterBtn, counterStyles.decrementBtn, count === 0 && counterStyles.counterBtnDisabled]}
-          textStyle={[counterStyles.counterBtnText, count === 0 && { opacity: 0.3 }]}
-          onPress={() => count > 0 && onDecrement()}
-          onLongPress={() => count > 0 && onLongDecrement()}
-        />
+      {units.map((unit: any, idx: number) => {
+        const count = counters[unit.unitKey] || 0;
+        return (
+          <View key={unit.unitKey} style={idx > 0 ? counterStyles.portionBlockSpaced : undefined}>
+            {isPortioned && (
+              <View style={counterStyles.portionHeader}>
+                <View style={[counterStyles.portionChip, count > 0 && counterStyles.portionChipActive]}>
+                  <Text style={[counterStyles.portionChipText, count > 0 && counterStyles.portionChipTextActive]}>
+                    {unit.portionName}
+                  </Text>
+                </View>
+                <Text style={counterStyles.portionPrice}>₹{unit.price}</Text>
+                {count > 0 && (
+                  <Text style={counterStyles.portionSubtotal}>= ₹{count * unit.price}</Text>
+                )}
+              </View>
+            )}
+            <UnitCounter
+              count={count}
+              onIncrement={() => onIncrement(unit.unitKey)}
+              onDecrement={() => onDecrement(unit.unitKey)}
+              onLongIncrement={() => onLongIncrement(unit.unitKey)}
+              onLongDecrement={() => onLongDecrement(unit.unitKey)}
+            />
+          </View>
+        );
+      })}
 
-        {/* Count display */}
-        <Animated.View style={[counterStyles.countBox, { transform: [{ scale: countScale }] }]}>
-          <Text style={[counterStyles.countText, count > 0 && counterStyles.countTextActive]}>
-            {count}
-          </Text>
-        </Animated.View>
-
-        {/* Increment */}
-        <CounterButton
-          label="+"
-          style={[counterStyles.counterBtn, counterStyles.incrementBtn]}
-          textStyle={counterStyles.counterBtnTextPlus}
-          onPress={handleIncrement}
-          onLongPress={onLongIncrement}
-        />
-      </View>
-
-      {count > 0 && (
+      {totalCount > 0 && (
         <View style={counterStyles.progressBar}>
           <View
-            style={[counterStyles.progressFill, { width: `${Math.min((count / 100) * 100, 100)}%` as any }]}
+            style={[counterStyles.progressFill, { width: `${Math.min((totalCount / 100) * 100, 100)}%` as any }]}
           />
         </View>
       )}
@@ -130,11 +159,12 @@ export default function TallyScreen({ navigation }: any) {
   const dispatch = useDispatch<AppDispatch>();
   const { t } = useLanguage();
   const { user } = useSelector((s: RootState) => s.auth);
-  const { items, tally } = useSelector((s: RootState) => s.menu);
-  const { currentDraft, todayReport } = useSelector((s: RootState) => s.reports);
+  const { items, tally, milkCostPerPacket, milkMlPerPacket } = useSelector((s: RootState) => s.menu);
+  const { todayReport } = useSelector((s: RootState) => s.reports);
 
   const [upiInput, setUpiInput] = useState(tally.upi === 0 ? '' : String(tally.upi));
   const [cashInput, setCashInput] = useState(tally.cash === 0 ? '' : String(tally.cash));
+  const [cigaretteInput, setCigaretteInput] = useState(tally.cigarettes ? String(tally.cigarettes) : '');
   const [recipeModal, setRecipeModal] = useState<{ name: string; recipe: string } | null>(null);
 
   useEffect(() => {
@@ -146,28 +176,32 @@ export default function TallyScreen({ navigation }: any) {
   useEffect(() => {
     setUpiInput(tally.upi === 0 ? '' : String(tally.upi));
     setCashInput(tally.cash === 0 ? '' : String(tally.cash));
+    setCigaretteInput(tally.cigarettes ? String(tally.cigarettes) : '');
   }, [tally.date]);
 
   const activeItems = items.filter(i => i.active).sort((a, b) => a.sortOrder - b.sortOrder);
 
+  // Portioned items (half / full plate) contribute one counter per serving, so
+  // totals sum across every sellable unit rather than a single per-item count.
   const totalCups = activeItems
     .filter(item => !MOMO_ITEM_KEYS.includes(item.key))
-    .reduce((sum, item) => sum + (tally.counters[item.key] || 0), 0);
-  const totalMomoPackets = activeItems
+    .reduce((sum, item) => sum + servingsForItem(item, tally.counters), 0);
+  const totalMomoPlates = activeItems
     .filter(item => MOMO_ITEM_KEYS.includes(item.key))
-    .reduce((sum, item) => sum + (tally.counters[item.key] || 0), 0);
-  const totalRevenue = activeItems.reduce((sum, item) => {
-    return sum + (tally.counters[item.key] || 0) * item.price;
-  }, 0);
+    .reduce((sum, item) => sum + servingsForItem(item, tally.counters), 0);
+  const cigaretteSales = tally.cigarettes || 0;
+  const totalRevenue = activeItems.reduce((sum, item) => sum + revenueForItem(item, tally.counters), 0)
+    + cigaretteSales;
   const totalPayments = tally.upi + tally.cash;
-  const milkCost = tally.milkPackets * MILK_COST_PER_PACKET;
-  const milkLitres = ((tally.milkPackets * MILK_ML_PER_PACKET) / 1000).toFixed(1);
+  const milkCost = tally.milkPackets * milkCostPerPacket;
+  const milkLitres = ((tally.milkPackets * milkMlPerPacket) / 1000).toFixed(1);
 
   const dateStr = new Date().toLocaleDateString('en-IN', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
 
-  const hasTallyData = totalCups > 0 || totalMomoPackets > 0 || tally.upi > 0 || tally.cash > 0 || tally.milkPackets > 0;
+  const hasTallyData = totalCups > 0 || totalMomoPlates > 0 || cigaretteSales > 0
+    || tally.upi > 0 || tally.cash > 0 || tally.milkPackets > 0;
 
   const handleReset = () => {
     haptics.heavy();
@@ -178,6 +212,7 @@ export default function TallyScreen({ navigation }: any) {
           dispatch(resetTally());
           setUpiInput('');
           setCashInput('');
+          setCigaretteInput('');
           haptics.success();
         },
       },
@@ -197,19 +232,29 @@ export default function TallyScreen({ navigation }: any) {
       [
         {
           text: hasTallyData ? t('tallyUseTallyData') : t('startDailyReport'),
-          onPress: () => {
-            if (!currentDraft) {
-              dispatch(startNewReport({
-                staffId: user?.id || '',
-                stallId: user?.stallId || '',
-                stallName: user?.stallName || '',
-              }));
-            }
-            if (hasTallyData) dispatch(preFillFromTally(tally));
+          onPress: async () => {
+            // Resumes an unfinished report — the local draft, or one autosaved
+            // to the server — before layering today's tally on top
+            await dispatch(resumeOrStartReport({
+              staffId: user?.id || '',
+              stallId: user?.stallId || '',
+              stallName: user?.stallName || '',
+            }));
+            if (hasTallyData) dispatch(preFillFromTally({ tally, items }));
             navigation.navigate('DailyReport');
           },
         },
-        hasTallyData ? { text: t('tallyStartFreshBtn'), onPress: () => navigation.navigate('DailyReport') } : null,
+        hasTallyData ? {
+          text: t('tallyStartFreshBtn'),
+          onPress: async () => {
+            await dispatch(resumeOrStartReport({
+              staffId: user?.id || '',
+              stallId: user?.stallId || '',
+              stallName: user?.stallName || '',
+            }));
+            navigation.navigate('DailyReport');
+          },
+        } : null,
         { text: t('cancel'), style: 'cancel' as const },
       ].filter(Boolean) as any
     );
@@ -240,7 +285,7 @@ export default function TallyScreen({ navigation }: any) {
         </View>
         <View style={styles.totalDivider} />
         <View style={styles.totalItem}>
-          <Text style={styles.totalValue}>{totalMomoPackets}</Text>
+          <Text style={styles.totalValue}>{totalMomoPlates}</Text>
           <Text style={styles.totalLabel}>{t('tallyMomosLabel')}</Text>
         </View>
         <View style={styles.totalDivider} />
@@ -275,24 +320,25 @@ export default function TallyScreen({ navigation }: any) {
           <CounterCard
             key={item.key}
             item={item}
-            count={tally.counters[item.key] || 0}
-            perCupLabel={MOMO_ITEM_KEYS.includes(item.key) ? t('tallyPerPacket') : t('tallyPerCup')}
+            units={getSellableUnits(item)}
+            counters={tally.counters}
+            unitLabel={MOMO_ITEM_KEYS.includes(item.key) ? t('tallyPerPacket') : t('tallyPerCup')}
             onPressRecipe={() => setRecipeModal({ name: item.name, recipe: item.recipe || '' })}
-            onIncrement={() => {
+            onIncrement={(key: string) => {
               haptics.selection();
-              dispatch(incrementTally({ key: item.key }));
+              dispatch(incrementTally({ key }));
             }}
-            onDecrement={() => {
+            onDecrement={(key: string) => {
               haptics.light();
-              dispatch(decrementTally({ key: item.key }));
+              dispatch(decrementTally({ key }));
             }}
-            onLongIncrement={() => {
+            onLongIncrement={(key: string) => {
               haptics.heavy();
-              dispatch(incrementTally({ key: item.key, by: 5 }));
+              dispatch(incrementTally({ key, by: 5 }));
             }}
-            onLongDecrement={() => {
+            onLongDecrement={(key: string) => {
               haptics.medium();
-              dispatch(decrementTally({ key: item.key, by: 5 }));
+              dispatch(decrementTally({ key, by: 5 }));
             }}
           />
         ))}
@@ -313,7 +359,11 @@ export default function TallyScreen({ navigation }: any) {
           <View style={milkStyles.cardHeader}>
             <View>
               <Text style={milkStyles.title}>{t('tallyMilkTitle')}</Text>
-              <Text style={milkStyles.subtitle}>{t('tallyMilkSubtitle')}</Text>
+              <Text style={milkStyles.subtitle}>
+                {t('tallyMilkSubtitle')
+                  .replace('{ml}', String(milkMlPerPacket))
+                  .replace('{cost}', String(milkCostPerPacket))}
+              </Text>
             </View>
             {tally.milkPackets > 0 && (
               <View style={milkStyles.infoBadge}>
@@ -364,6 +414,34 @@ export default function TallyScreen({ navigation }: any) {
               <View style={[milkStyles.progressFill, { width: `${Math.min((tally.milkPackets / 20) * 100, 100)}%` as any }]} />
             </View>
           )}
+        </View>
+
+        {/* Cigarettes — tracked by rupee value, not by unit count */}
+        <Text style={[styles.sectionLabel, { marginTop: SPACING.xl }]}>{t('tallyCigarettes')}</Text>
+        <Text style={styles.sectionHint}>{t('tallyCigarettesHint')}</Text>
+
+        <View style={styles.paymentCard}>
+          <View style={styles.paymentRow}>
+            <View style={styles.paymentLabelCol}>
+              <Text style={styles.paymentMode}>🚬 {t('tallyCigarettesLabel')}</Text>
+              <Text style={styles.paymentSub}>{t('tallyCigarettesSub')}</Text>
+            </View>
+            <View style={styles.paymentInputWrap}>
+              <Text style={styles.rupeeSign}>₹</Text>
+              <TextInput
+                style={styles.paymentInput}
+                value={cigaretteInput}
+                onChangeText={(text) => {
+                  setCigaretteInput(text);
+                  const n = parseFloat(text);
+                  dispatch(setTallyCigarettes(isNaN(n) ? 0 : n));
+                }}
+                keyboardType="decimal-pad"
+                placeholder="0"
+                placeholderTextColor={COLORS.muted}
+              />
+            </View>
+          </View>
         </View>
 
         {/* Payment tally */}
@@ -451,10 +529,12 @@ export default function TallyScreen({ navigation }: any) {
           <View style={styles.ctaSummary}>
             <Text style={styles.ctaSummaryText}>
               {totalCups > 0 ? `${totalCups} cups` : ''}
-              {totalCups > 0 && totalMomoPackets > 0 ? ' · ' : ''}
-              {totalMomoPackets > 0 ? `${totalMomoPackets} momos` : ''}
-              {(totalCups > 0 || totalMomoPackets > 0) ? ` · ₹${totalRevenue} est` : ''}
-              {(totalCups > 0 || totalMomoPackets > 0) && milkCost > 0 ? ' · ' : ''}
+              {totalCups > 0 && totalMomoPlates > 0 ? ' · ' : ''}
+              {totalMomoPlates > 0 ? `${totalMomoPlates} momo plates` : ''}
+              {(totalCups > 0 || totalMomoPlates > 0) && cigaretteSales > 0 ? ' · ' : ''}
+              {cigaretteSales > 0 ? `🚬 ₹${cigaretteSales}` : ''}
+              {(totalCups > 0 || totalMomoPlates > 0 || cigaretteSales > 0) ? ` · ₹${totalRevenue} est` : ''}
+              {(totalCups > 0 || totalMomoPlates > 0 || cigaretteSales > 0) && milkCost > 0 ? ' · ' : ''}
               {milkCost > 0 ? `🥛 ${tally.milkPackets}pkt ₹${milkCost} exp` : ''}
               {totalPayments > 0 ? ` · ₹${totalPayments} collected` : ''}
             </Text>
@@ -621,6 +701,24 @@ const counterStyles = StyleSheet.create({
   counterRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
   },
+
+  portionBlockSpaced: {
+    marginTop: SPACING.lg, paddingTop: SPACING.lg,
+    borderTopWidth: 1, borderTopColor: COLORS.borderLight,
+  },
+  portionHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.sm,
+  },
+  portionChip: {
+    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.full,
+    paddingHorizontal: SPACING.md, paddingVertical: 4,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  portionChipActive: { backgroundColor: COLORS.primaryBg, borderColor: COLORS.primary },
+  portionChipText: { fontSize: FONT_SIZE.sm, fontWeight: '700', color: COLORS.medium },
+  portionChipTextActive: { color: COLORS.primary },
+  portionPrice: { fontSize: FONT_SIZE.sm, fontWeight: '700', color: COLORS.dark },
+  portionSubtotal: { fontSize: FONT_SIZE.sm, color: COLORS.muted, marginLeft: 'auto' as any },
 
   counterBtn: {
     width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center',

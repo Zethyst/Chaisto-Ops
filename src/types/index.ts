@@ -69,6 +69,7 @@ export interface DailyReport {
   purchases: {
     milk: number;        // litres
     snacks: number;      // ₹
+    cigarettes?: number; // ₹ — absent on reports filed before it was tracked
     vegMomoPackets: number;
     paneerMomoPackets: number;
   };
@@ -80,6 +81,7 @@ export interface DailyReport {
     vegMomoPackets: number;
     paneerMomoPackets: number;
     snacks: number;      // ₹
+    cigarettes?: number; // ₹ — absent on reports filed before it was tracked
   };
 
   payments: {
@@ -97,16 +99,24 @@ export interface DailyReport {
     paneerMomoPackets: number;
   };
 
+  // Absent on reports an admin backfilled for a past day
   photos: {
     cash: string;
     stock: string;
     milkPacket: string;
+    // Optional — captured when the staff closes the cart for the day
+    cartClosing?: string;
   };
 
   location: {
     latitude: number;
     longitude: number;
   };
+
+  // Set when an admin filed this report on the staff member's behalf for a
+  // past day — it carries no photos or GPS
+  isBackfill?: boolean;
+  enteredByName?: string;
 
   computed: {
     totalRevenue: number;
@@ -139,7 +149,7 @@ export interface PhotoCapture {
   longitude: number;
   deviceId: string;
   stallName: string;
-  category: 'cash' | 'stock' | 'milk_packet';
+  category: 'cash' | 'stock' | 'milk_packet' | 'cartClosing';
   watermarked: boolean;
 }
 
@@ -247,6 +257,17 @@ export interface AuditLogEntry {
   createdAt: string;
 }
 
+// A serving size an item can be sold in (e.g. half plate / full plate).
+// `stockFactor` is how much of the item's stock unit one serving consumes —
+// a half plate is 0.5 packets — so plate sales still reconcile against the
+// packet-based opening/closing stock the anti-cheat engine works with.
+export interface MenuPortion {
+  key: string;
+  name: string;
+  price: number;
+  stockFactor: number;
+}
+
 export interface MenuItem {
   key: string;
   name: string;
@@ -255,6 +276,14 @@ export interface MenuItem {
   sortOrder: number;
   isDefault?: boolean;
   recipe?: string;
+  // When present, the item is sold per portion and `price` is unused.
+  portions?: MenuPortion[];
+  /**
+   * Explicitly `false` when an admin chose a single price for an item that
+   * would otherwise default to plate pricing. Distinguishes that choice from
+   * config saved before portions existed, which is backfilled with defaults.
+   */
+  portioned?: boolean;
 }
 
 export interface StallConfig {
@@ -266,6 +295,10 @@ export interface StallConfig {
   missingReportAlertHour: number;
   cupsIncentivePerCup: number;
   momoIncentivePerPacket: number;
+  // Supply pricing & units
+  milkCostPerPacket: number;
+  milkMlPerPacket: number;
+  momoPiecesPerPlate: number;
   menuItems?: MenuItem[];
   updatedByName?: string;
   updatedAt?: string;
@@ -277,7 +310,7 @@ export type RootStackParamList = {
   ModeratorDashboard: undefined;
   StaffDashboard: undefined;
   DailyReport: undefined;
-  CameraCapture: { category: PhotoCapture['category'] };
+  CameraCapture: { category: PhotoCapture['category']; reportId?: string };
   StaffManagement: undefined;
   InventoryManagement: undefined;
   Analytics: undefined;
@@ -285,6 +318,7 @@ export type RootStackParamList = {
   Notifications: undefined;
   Settings: undefined;
   ReportDetail: { reportId: string };
+  BackfillReport: undefined;
   AddStaff: undefined;
   ExpenseTracker: undefined;
   WastageLog: undefined;

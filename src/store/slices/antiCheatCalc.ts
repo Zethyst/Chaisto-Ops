@@ -22,8 +22,13 @@ export function computeReportMetrics(report: Partial<DailyReport>): {
   const momoClosing = (closingStock?.vegMomoPackets || 0) + (closingStock?.paneerMomoPackets || 0);
   const expectedMomoFromStock = momoOpening + momoPurchased - momoClosing;
   const totalRevenue = (payments?.upi || 0) + (payments?.cash || 0);
-  const revenuePerCup = totalCups > 0 ? totalRevenue / totalCups : 0;
-  const revenuePerMomoPacket = totalMomoPackets > 0 ? totalRevenue / totalMomoPackets : 0;
+  // Snacks and cigarettes are sold by rupee value, not by the cup or plate, so
+  // they are netted out before checking the per-unit rate — otherwise a stall
+  // with healthy side sales looks like it is overcharging for chai.
+  const nonUnitSales = (sales?.snacks || 0) + (sales?.cigarettes || 0);
+  const unitRevenue = Math.max(0, totalRevenue - nonUnitSales);
+  const revenuePerCup = totalCups > 0 ? unitRevenue / totalCups : 0;
+  const revenuePerMomoPacket = totalMomoPackets > 0 ? unitRevenue / totalMomoPackets : 0;
   const upiRatio = totalRevenue > 0 ? (payments?.upi || 0) / totalRevenue : 0;
 
   // Flag 1: Milk vs cups mismatch (>20% deviation)
@@ -47,7 +52,7 @@ export function computeReportMetrics(report: Partial<DailyReport>): {
       flags.push({
         type: 'momo_stock_mismatch',
         severity: momoDeviation > 0.45 ? 'high' : 'medium',
-        message: `${totalMomoPackets} momo packets reported but stock suggests ~${Math.round(expectedMomoFromStock)} packets`,
+        message: `${totalMomoPackets} momo plates reported but stock suggests ~${Math.round(expectedMomoFromStock)} plates`,
         value: totalMomoPackets,
         expectedValue: Math.round(expectedMomoFromStock),
       });
@@ -64,14 +69,14 @@ export function computeReportMetrics(report: Partial<DailyReport>): {
     });
   }
 
-  // Flag 2b: Revenue vs momo packets mismatch — only on momo-only days (no
+  // Flag 2b: Revenue vs momo plates mismatch — only on momo-only days (no
   // cups sold), since the cup-based check above already covers days with
   // cup sales. Matches the backend's MIN_PRICE_MOMO/MAX_PRICE_MOMO of 20/150.
   if (totalCups === 0 && totalMomoPackets > 0 && (revenuePerMomoPacket < 20 || revenuePerMomoPacket > 150)) {
     flags.push({
       type: 'momo_revenue_mismatch',
       severity: 'high',
-      message: `Revenue per momo packet ₹${revenuePerMomoPacket.toFixed(0)} is outside normal range (₹20-₹150)`,
+      message: `Revenue per momo plate ₹${revenuePerMomoPacket.toFixed(0)} is outside normal range (₹20-₹150)`,
       value: revenuePerMomoPacket,
     });
   }

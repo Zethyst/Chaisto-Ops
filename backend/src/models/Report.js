@@ -37,7 +37,8 @@ const reportSchema = new mongoose.Schema({
   openingStock: stockSchema,
   purchases: {
     milk: { type: Number, default: 0, min: 0 },
-    snacks: { type: Number, default: 0, min: 0 }, // ₹
+    snacks: { type: Number, default: 0, min: 0 },     // ₹
+    cigarettes: { type: Number, default: 0, min: 0 }, // ₹
     vegMomoPackets: { type: Number, default: 0, min: 0 },
     paneerMomoPackets: { type: Number, default: 0, min: 0 },
   },
@@ -47,7 +48,8 @@ const reportSchema = new mongoose.Schema({
     kulhadCups: { type: Number, default: 0, min: 0 },
     vegMomoPackets: { type: Number, default: 0, min: 0 },
     paneerMomoPackets: { type: Number, default: 0, min: 0 },
-    snacks: { type: Number, default: 0, min: 0 }, // ₹
+    snacks: { type: Number, default: 0, min: 0 },     // ₹
+    cigarettes: { type: Number, default: 0, min: 0 }, // ₹
   },
   payments: {
     upi: { type: Number, default: 0, min: 0 },
@@ -55,13 +57,23 @@ const reportSchema = new mongoose.Schema({
   },
   closingStock: stockSchema,
 
+  // Required for staff submissions (enforced by the POST /reports validators);
+  // an admin backfilling a past day has no photos to attach
   photos: {
-    cash: { type: String, required: true },
-    stock: { type: String, required: true },
-    milkPacket: { type: String, required: true },
+    cash: { type: String },
+    stock: { type: String },
+    milkPacket: { type: String },
+    // Optional — cart photo taken at closing time
+    cartClosing: { type: String },
   },
 
   location: { type: locationSchema, required: true },
+
+  // Set when an admin or moderator files the report on a staff member's behalf
+  // for a past day — no photos or GPS exist for it
+  isBackfill: { type: Boolean, default: false },
+  enteredById: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  enteredByName: { type: String },
   deviceId: String,
 
   // Server-computed (not trusted from client)

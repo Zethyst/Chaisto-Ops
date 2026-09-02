@@ -6,8 +6,8 @@ import {
 import { showAlert } from '../../components/AppAlert';
 import { launchCamera } from 'react-native-image-picker';
 import { useDispatch, useSelector } from 'react-redux';
-import { RootState } from '../../store';
-import { addPhoto } from '../../store/slices/reportSlice';
+import { RootState, AppDispatch } from '../../store';
+import { addPhoto, attachReportPhoto } from '../../store/slices/reportSlice';
 import { reportService } from '../../services/reportService';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS } from '../../constants';
 import { haptics } from '../../utils/haptics';
@@ -16,18 +16,22 @@ const CATEGORY_LABELS: Record<string, string> = {
   cash: 'Cash Photo',
   stock: 'Stock Photo',
   milkPacket: 'Milk Packet Photo',
+  cartClosing: 'Cart Closing Photo',
 };
 
 const CATEGORY_HINTS: Record<string, string> = {
   cash: 'Capture the cash tray/drawer clearly',
   stock: 'All remaining stock items in frame',
   milkPacket: 'Milk packets with quantities visible',
+  cartClosing: 'The cart as you close it for the day',
 };
 
 export default function CameraCaptureScreen({ navigation, route }: any) {
-  const { category } = route.params;
+  // `reportId` is set when the photo is being added to an already-submitted
+  // report (the optional cart-closing shot) rather than to the working draft.
+  const { category, reportId } = route.params;
   const { user } = useSelector((s: RootState) => s.auth);
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const [uploading, setUploading] = useState(false);
 
   const capturePhoto = async () => {
@@ -88,7 +92,11 @@ export default function CameraCaptureScreen({ navigation, route }: any) {
         user?.stallName || 'Chaisto'
       );
 
-      dispatch(addPhoto({ category, uri: uploadedUrl }));
+      if (reportId) {
+        await dispatch(attachReportPhoto({ reportId, category, url: uploadedUrl })).unwrap();
+      } else {
+        dispatch(addPhoto({ category, uri: uploadedUrl }));
+      }
       haptics.success();
       showAlert('Photo Captured!', `${CATEGORY_LABELS[category]} saved successfully.`, [
         { text: 'OK', onPress: () => navigation.goBack() },

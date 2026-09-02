@@ -10,10 +10,12 @@ import { RootState, AppDispatch } from '../../store';
 import {
   updateDraftSection, setStep, submitDailyReport,
 } from '../../store/slices/reportSlice';
+import { useDraftAutosave } from './useDraftAutosave';
 
 import { deviceService } from '../../services/deviceService';
-import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS, REPORT_STEPS, PHOTO_CATEGORIES } from '../../constants';
-import { ITEM_KEY_TO_SALES_FIELD, MOMO_ITEM_KEYS } from '../../store/slices/menuSlice';
+import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS, REPORT_STEPS, PHOTO_CATEGORIES, REQUIRED_PHOTO_CATEGORIES } from '../../constants';
+import { ITEM_KEY_TO_SALES_FIELD, MOMO_ITEM_KEYS, pricePerStockUnit } from '../../store/slices/menuSlice';
+import { useSupplyUnits } from './useSupplyUnits';
 import { DailyReport } from '../../types';
 import { haptics } from '../../utils/haptics';
 
@@ -21,8 +23,11 @@ const STEP_ICONS = ['📦', '🛒', '☕', '💳', '📊', '📸', '✓'];
 
 export default function DailyReportScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
-  const { currentDraft, currentStep, isSubmitting } = useSelector((s: RootState) => s.reports);
+  const { currentDraft, currentStep, isSubmitting, draftSaveState } = useSelector((s: RootState) => s.reports);
   const dispatch = useDispatch<AppDispatch>();
+
+  // Every field value and photo URL is saved to the server as it is entered
+  useDraftAutosave();
 
   const handleNext = () => {
     haptics.light();
@@ -42,7 +47,7 @@ export default function DailyReportScreen({ navigation }: any) {
 
   const handleSubmit = async () => {
     const photos = currentDraft?.photos as any;
-    const missingPhotos = PHOTO_CATEGORIES.filter((c) => !photos?.[c.key]);
+    const missingPhotos = REQUIRED_PHOTO_CATEGORIES.filter((c) => !photos?.[c.key]);
     if (missingPhotos.length > 0) {
       showAlert('Missing Photos', `Please capture: ${missingPhotos.map(p => p.label).join(', ')}`);
       return;
@@ -84,7 +89,7 @@ export default function DailyReportScreen({ navigation }: any) {
 
   const progress = ((currentStep + 1) / REPORT_STEPS.length) * 100;
   const capturedPhotos = (currentDraft.photos as any) || {};
-  const allPhotosCaptured = PHOTO_CATEGORIES.every((c) => !!capturedPhotos[c.key]);
+  const allPhotosCaptured = REQUIRED_PHOTO_CATEGORIES.every((c) => !!capturedPhotos[c.key]);
   const isNextDisabled = currentStep === 5 && !allPhotosCaptured;
 
   return (
@@ -104,6 +109,16 @@ export default function DailyReportScreen({ navigation }: any) {
         <View style={styles.stepBadge}>
           <Text style={styles.stepBadgeText}>{currentStep + 1}/{REPORT_STEPS.length}</Text>
         </View>
+      </View>
+
+      {/* Autosave status */}
+      <View style={styles.saveStatusBar}>
+        <Text style={[styles.saveStatusText, draftSaveState === 'error' && styles.saveStatusError]}>
+          {draftSaveState === 'saving' ? '⏳  Saving…'
+            : draftSaveState === 'error' ? '⚠️  Saved on this phone only — will retry'
+            : draftSaveState === 'saved' ? '✅  Saved — you can finish this later'
+            : '📝  Entries save automatically as you go'}
+        </Text>
       </View>
 
       {/* Progress Bar */}
@@ -148,7 +163,7 @@ export default function DailyReportScreen({ navigation }: any) {
               <Text style={styles.nextBtnText}>Continue →</Text>
             </TouchableOpacity>
             {isNextDisabled && (
-              <Text style={styles.photoLockHint}>Capture all {PHOTO_CATEGORIES.length} photos to continue</Text>
+              <Text style={styles.photoLockHint}>Capture all {REQUIRED_PHOTO_CATEGORIES.length} required photos to continue</Text>
             )}
           </>
         ) : (
@@ -203,6 +218,24 @@ function NumberField({ label, value, onChange, unit, hint }: any) {
   );
 }
 
+// Entry field whose displayed unit differs from the stored unit — milk is
+// stored in litres but counted in packets, momos are stored in plate-
+// equivalents but counted in pieces.
+function ScaledNumberField({ label, value, onChange, factor, unit, hint }: any) {
+  const toDisplay = (stored: number) => Math.round((stored || 0) * factor * 100) / 100;
+  const toStored = (displayed: number) => Math.round((displayed / factor) * 10000) / 10000;
+
+  return (
+    <NumberField
+      label={label}
+      value={toDisplay(value)}
+      onChange={(v: number) => onChange(toStored(v))}
+      unit={unit}
+      hint={hint}
+    />
+  );
+}
+
 function StepCard({ title, children }: any) {
   return (
     <View style={stepStyles.card}>
@@ -214,31 +247,72 @@ function StepCard({ title, children }: any) {
 
 function OpeningStockStep({ draft, dispatch }: any) {
   const s = draft.openingStock || {};
+  const { milkPacketsPerLitre, momoPiecesPerPlateFactor, milkMlPerPacket } = useSupplyUnits();
   const update = (key: string, val: number) =>
     dispatch(updateDraftSection({ section: 'openingStock', data: { ...s, [key]: val } }));
   return (
     <StepCard title="📦 Opening Stock">
-      <NumberField label="Milk" value={s.milk} onChange={(v: number) => update('milk', v)} unit="litres" hint="Measure before starting" />
-      <NumberField label="Sugar" value={s.sugar} onChange={(v: number) => update('sugar', v)} unit="kg" />
-      <NumberField label="Tea leaves" value={s.teaLeaves} onChange={(v: number) => update('teaLeaves', v)} unit="grams" />
+      <ScaledNumberField
+        label="Milk"
+        value={s.milk}
+        onChange={(v: number) => update('milk', v)}
+        factor={milkPacketsPerLitre}
+        unit="packets"
+        hint={`Count packets before starting · ${milkMlPerPacket}ml each`}
+      />
       <NumberField label="Paper cups" value={s.cups} onChange={(v: number) => update('cups', v)} unit="count" />
       <NumberField label="Kulhad cups" value={s.kulhadCups} onChange={(v: number) => update('kulhadCups', v)} unit="count" />
-      <NumberField label="Veg momo packets" value={s.vegMomoPackets} onChange={(v: number) => update('vegMomoPackets', v)} unit="packets" />
-      <NumberField label="Paneer momo packets" value={s.paneerMomoPackets} onChange={(v: number) => update('paneerMomoPackets', v)} unit="packets" />
+      <ScaledNumberField
+        label="Veg momos"
+        value={s.vegMomoPackets}
+        onChange={(v: number) => update('vegMomoPackets', v)}
+        factor={momoPiecesPerPlateFactor}
+        unit="pieces"
+      />
+      <ScaledNumberField
+        label="Paneer momos"
+        value={s.paneerMomoPackets}
+        onChange={(v: number) => update('paneerMomoPackets', v)}
+        factor={momoPiecesPerPlateFactor}
+        unit="pieces"
+      />
     </StepCard>
   );
 }
 
 function PurchasesStep({ draft, dispatch }: any) {
   const p = draft.purchases || {};
+  const { milkPacketsPerLitre, momoPiecesPerPlateFactor, milkMlPerPacket } = useSupplyUnits();
   const update = (key: string, val: number) =>
     dispatch(updateDraftSection({ section: 'purchases', data: { ...p, [key]: val } }));
   return (
     <StepCard title="🛒 Purchases Today">
-      <NumberField label="Milk purchased" value={p.milk} onChange={(v: number) => update('milk', v)} unit="litres" hint="Leave 0 if none" />
-      <NumberField label="Veg momo packets purchased" value={p.vegMomoPackets} onChange={(v: number) => update('vegMomoPackets', v)} unit="packets" hint="Leave 0 if none" />
-      <NumberField label="Paneer momo packets purchased" value={p.paneerMomoPackets} onChange={(v: number) => update('paneerMomoPackets', v)} unit="packets" hint="Leave 0 if none" />
+      <ScaledNumberField
+        label="Milk purchased"
+        value={p.milk}
+        onChange={(v: number) => update('milk', v)}
+        factor={milkPacketsPerLitre}
+        unit="packets"
+        hint={`Leave 0 if none · ${milkMlPerPacket}ml each`}
+      />
+      <ScaledNumberField
+        label="Veg momos purchased"
+        value={p.vegMomoPackets}
+        onChange={(v: number) => update('vegMomoPackets', v)}
+        factor={momoPiecesPerPlateFactor}
+        unit="pieces"
+        hint="Leave 0 if none"
+      />
+      <ScaledNumberField
+        label="Paneer momos purchased"
+        value={p.paneerMomoPackets}
+        onChange={(v: number) => update('paneerMomoPackets', v)}
+        factor={momoPiecesPerPlateFactor}
+        unit="pieces"
+        hint="Leave 0 if none"
+      />
       <NumberField label="Snacks purchased" value={p.snacks} onChange={(v: number) => update('snacks', v)} unit="₹" hint="Total cost of snacks bought" />
+      <NumberField label="Cigarettes purchased" value={p.cigarettes} onChange={(v: number) => update('cigarettes', v)} unit="₹" hint="Total cost of cigarette stock bought" />
     </StepCard>
   );
 }
@@ -246,37 +320,55 @@ function PurchasesStep({ draft, dispatch }: any) {
 function SalesStep({ draft, dispatch }: any) {
   const s = draft.sales || {};
   const menuItems = useSelector((state: RootState) => state.menu.items);
+  const { momoPiecesPerPlateFactor } = useSupplyUnits();
   const activeItems = menuItems.filter(i => i.active).sort((a, b) => a.sortOrder - b.sortOrder);
 
   const update = (key: string, val: number) =>
     dispatch(updateDraftSection({ section: 'sales', data: { ...s, [key]: val } }));
 
+  // Sales are recorded in stock units (cups / packets), so plate-served items
+  // are valued at their full-plate rate.
   const estimatedRevenue = activeItems.reduce((sum, item) => {
     const field = ITEM_KEY_TO_SALES_FIELD[item.key];
     const count = field ? (s[field] || 0) : 0;
-    return sum + count * item.price;
+    return sum + count * pricePerStockUnit(item);
   }, 0);
 
   const priceLine = activeItems
-    .map(i => `₹${i.price} ${i.name.toLowerCase()}`)
+    .map(i => (i.portions?.length
+      ? `${i.name.toLowerCase()} ${i.portions.map(p => `${p.name.toLowerCase()} ₹${p.price}`).join(' / ')}`
+      : `₹${i.price} ${i.name.toLowerCase()}`))
     .join(' · ');
 
   return (
     <StepCard title="☕ Sales Entry">
       {activeItems.map((item) => {
         const field = ITEM_KEY_TO_SALES_FIELD[item.key] || item.key;
-        const unit = MOMO_ITEM_KEYS.includes(item.key) ? 'packets' : 'cups';
+        if (MOMO_ITEM_KEYS.includes(item.key)) {
+          return (
+            <ScaledNumberField
+              key={item.key}
+              label={item.name}
+              value={s[field] || 0}
+              onChange={(v: number) => update(field, v)}
+              factor={momoPiecesPerPlateFactor}
+              unit="pieces"
+              hint={`Total pieces sold · 1 full plate = ${momoPiecesPerPlateFactor} pieces`}
+            />
+          );
+        }
         return (
           <NumberField
             key={item.key}
-            label={`${item.name}`}
+            label={item.name}
             value={s[field] || 0}
             onChange={(v: number) => update(field, v)}
-            unit={unit}
+            unit="cups"
           />
         );
       })}
       <NumberField label="Snacks sold" value={s.snacks} onChange={(v: number) => update('snacks', v)} unit="₹" hint="Total snack sales in ₹" />
+      <NumberField label="Cigarettes sold" value={s.cigarettes} onChange={(v: number) => update('cigarettes', v)} unit="₹" hint="Total cigarette sales in ₹" />
       <View style={stepStyles.estimate}>
         <Text style={stepStyles.estimateLabel}>Estimated revenue from cups</Text>
         <Text style={stepStyles.estimateValue}>₹{Math.round(estimatedRevenue)}</Text>
@@ -322,18 +414,35 @@ function PaymentsStep({ draft, dispatch }: any) {
 
 function ClosingStockStep({ draft, dispatch }: any) {
   const s = draft.closingStock || {};
+  const { milkPacketsPerLitre, momoPiecesPerPlateFactor } = useSupplyUnits();
   const update = (key: string, val: number) =>
     dispatch(updateDraftSection({ section: 'closingStock', data: { ...s, [key]: val } }));
   return (
     <StepCard title="📊 Closing Stock">
       <Text style={stepStyles.note}>Count remaining stock carefully — this is verified against opening stock.</Text>
-      <NumberField label="Milk remaining" value={s.milk} onChange={(v: number) => update('milk', v)} unit="litres" />
-      <NumberField label="Sugar remaining" value={s.sugar} onChange={(v: number) => update('sugar', v)} unit="kg" />
-      <NumberField label="Tea leaves remaining" value={s.teaLeaves} onChange={(v: number) => update('teaLeaves', v)} unit="grams" />
+      <ScaledNumberField
+        label="Milk remaining"
+        value={s.milk}
+        onChange={(v: number) => update('milk', v)}
+        factor={milkPacketsPerLitre}
+        unit="packets"
+      />
       <NumberField label="Paper cups remaining" value={s.cups} onChange={(v: number) => update('cups', v)} unit="count" />
       <NumberField label="Kulhad cups remaining" value={s.kulhadCups} onChange={(v: number) => update('kulhadCups', v)} unit="count" />
-      <NumberField label="Veg momo packets remaining" value={s.vegMomoPackets} onChange={(v: number) => update('vegMomoPackets', v)} unit="packets" />
-      <NumberField label="Paneer momo packets remaining" value={s.paneerMomoPackets} onChange={(v: number) => update('paneerMomoPackets', v)} unit="packets" />
+      <ScaledNumberField
+        label="Veg momos remaining"
+        value={s.vegMomoPackets}
+        onChange={(v: number) => update('vegMomoPackets', v)}
+        factor={momoPiecesPerPlateFactor}
+        unit="pieces"
+      />
+      <ScaledNumberField
+        label="Paneer momos remaining"
+        value={s.paneerMomoPackets}
+        onChange={(v: number) => update('paneerMomoPackets', v)}
+        factor={momoPiecesPerPlateFactor}
+        unit="pieces"
+      />
     </StepCard>
   );
 }
@@ -342,8 +451,10 @@ function PhotosStep({ draft, navigation }: any) {
   const photos = draft.photos || {};
   return (
     <View>
-      <Text style={stepStyles.photosTitle}>📸 Required Photos</Text>
-      <Text style={stepStyles.photosNote}>You must capture all {PHOTO_CATEGORIES.length} photos using the camera below. Gallery uploads are disabled.</Text>
+      <Text style={stepStyles.photosTitle}>📸 Photos</Text>
+      <Text style={stepStyles.photosNote}>
+        You must capture the {REQUIRED_PHOTO_CATEGORIES.length} required photos using the camera below. Gallery uploads are disabled.
+      </Text>
       {PHOTO_CATEGORIES.map((cat) => {
         const captured = !!photos[cat.key];
         return (
@@ -359,7 +470,11 @@ function PhotosStep({ draft, navigation }: any) {
               <Text style={stepStyles.photoLabel}>{cat.label}</Text>
               <Text style={stepStyles.photoSub}>{captured ? 'Captured' : 'Tap to capture'}</Text>
             </View>
-            {!captured && <Text style={stepStyles.required}>Required</Text>}
+            {!captured && (
+              <Text style={cat.required ? stepStyles.required : stepStyles.optional}>
+                {cat.required ? 'Required' : 'Optional'}
+              </Text>
+            )}
           </TouchableOpacity>
         );
       })}
@@ -369,9 +484,11 @@ function PhotosStep({ draft, navigation }: any) {
 
 function ReviewStep({ draft }: any) {
   const cups = (draft.sales?.regularCups || 0) + (draft.sales?.specialCups || 0) + (draft.sales?.kulhadCups || 0);
-  const momoPackets = (draft.sales?.vegMomoPackets || 0) + (draft.sales?.paneerMomoPackets || 0);
+  const momoPlates = (draft.sales?.vegMomoPackets || 0) + (draft.sales?.paneerMomoPackets || 0);
   const revenue = (draft.payments?.upi || 0) + (draft.payments?.cash || 0);
   const flags = draft.flags || [];
+  const { milkPacketsPerLitre, momoPiecesPerPlateFactor } = useSupplyUnits();
+  const capturedPhotos = REQUIRED_PHOTO_CATEGORIES.filter(c => !!(draft.photos || {})[c.key]).length;
 
   return (
     <View>
@@ -387,12 +504,16 @@ function ReviewStep({ draft }: any) {
       )}
       <View style={stepStyles.reviewCard}>
         <ReviewRow label="Cups sold" value={`${cups} cups`} />
-        <ReviewRow label="Momo packets sold" value={`${momoPackets} packets`} />
+        <ReviewRow label="Momos sold" value={`${Math.round(momoPlates * momoPiecesPerPlateFactor)} pieces`} />
+        <ReviewRow label="Cigarettes sold" value={`₹${draft.sales?.cigarettes || 0}`} />
         <ReviewRow label="Total revenue" value={`₹${revenue}`} />
         <ReviewRow label="UPI" value={`₹${draft.payments?.upi || 0}`} />
         <ReviewRow label="Cash" value={`₹${draft.payments?.cash || 0}`} />
-        <ReviewRow label="Milk used" value={`${draft.computed?.milkUsed?.toFixed(1) || 0}L`} />
-        <ReviewRow label="Photos" value={`${Object.values(draft.photos || {}).filter(Boolean).length}/${PHOTO_CATEGORIES.length}`} />
+        <ReviewRow
+          label="Milk used"
+          value={`${((draft.computed?.milkUsed || 0) * milkPacketsPerLitre).toFixed(1)} packets`}
+        />
+        <ReviewRow label="Photos" value={`${capturedPhotos}/${REQUIRED_PHOTO_CATEGORIES.length} required`} />
       </View>
       <View style={stepStyles.lockNote}>
         <Text style={stepStyles.lockText}>🔒 Report is locked after submission. Ensure all entries are correct.</Text>
@@ -427,6 +548,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: COLORS.border,
   },
   stepBadgeText: { fontSize: FONT_SIZE.sm, color: COLORS.primaryLight, fontWeight: '700' },
+
+  saveStatusBar: {
+    backgroundColor: COLORS.white, paddingHorizontal: SPACING.lg, paddingBottom: SPACING.sm,
+  },
+  saveStatusText: { fontSize: 11, color: COLORS.muted, fontWeight: '600' },
+  saveStatusError: { color: COLORS.warning },
 
   progressTrack: { height: 4, backgroundColor: COLORS.borderLight },
   progressFill: { height: '100%', backgroundColor: COLORS.primary },
@@ -516,6 +643,7 @@ const stepStyles = StyleSheet.create({
   photoLabel: { fontSize: FONT_SIZE.md, fontWeight: '600', color: COLORS.black },
   photoSub: { fontSize: FONT_SIZE.sm, color: COLORS.muted, marginTop: 2 },
   required: { fontSize: 11, color: COLORS.danger, fontWeight: '700', letterSpacing: 0.5 },
+  optional: { fontSize: 11, color: COLORS.muted, fontWeight: '700', letterSpacing: 0.5 },
 
   reviewTitle: { fontSize: FONT_SIZE.xl, fontWeight: '700', color: COLORS.black, marginBottom: SPACING.lg },
   flagsBox: {

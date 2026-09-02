@@ -1,7 +1,8 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { DailyReport } from '../../types';
 import { reportService } from '../../services/reportService';
-import { TallyData, ITEM_KEY_TO_SALES_FIELD } from './menuSlice';
+import { TallyData, ITEM_KEY_TO_SALES_FIELD, splitUnitKey, getSellableUnits } from './menuSlice';
+import { MenuItem } from '../../types';
 import { computeReportMetrics } from './antiCheatCalc';
 
 // Re-exported for backward compatibility with existing imports.
@@ -16,7 +17,26 @@ interface ReportState {
   isSubmitting: boolean;
   error: string | null;
   syncPending: boolean;
+  /** Server-side autosave status for the in-progress report */
+  draftSaveState: 'idle' | 'saving' | 'saved' | 'error';
+  draftSavedAt: string | null;
 }
+
+const blankDraft = ({ staffId, stallId }: { staffId: string; stallId: string; stallName?: string }): Partial<DailyReport> => ({
+  id: `draft_${Date.now()}`,
+  staffId,
+  stallId,
+  staffName: '',
+  date: new Date().toISOString().split('T')[0],
+  status: 'draft',
+  flags: [],
+  photos: { cash: '', stock: '', milkPacket: '', cartClosing: '' },
+  openingStock: { milk: 0, sugar: 0, teaLeaves: 0, cups: 0, kulhadCups: 0, vegMomoPackets: 0, paneerMomoPackets: 0 },
+  purchases: { milk: 0, snacks: 0, cigarettes: 0, vegMomoPackets: 0, paneerMomoPackets: 0 },
+  sales: { regularCups: 0, specialCups: 0, kulhadCups: 0, vegMomoPackets: 0, paneerMomoPackets: 0, snacks: 0, cigarettes: 0 },
+  payments: { upi: 0, cash: 0 },
+  closingStock: { milk: 0, sugar: 0, teaLeaves: 0, cups: 0, kulhadCups: 0, vegMomoPackets: 0, paneerMomoPackets: 0 },
+});
 
 const initialState: ReportState = {
   currentDraft: null,
@@ -27,6 +47,8 @@ const initialState: ReportState = {
   isSubmitting: false,
   error: null,
   syncPending: false,
+  draftSaveState: 'idle',
+  draftSavedAt: null,
 };
 
 export const submitDailyReport = createAsyncThunk(
@@ -54,6 +76,61 @@ export const fetchReports = createAsyncThunk(
   }
 );
 
+// Pushes the in-progress report to the server. Called debounced as fields and
+// photo URLs change, so an interrupted report can be picked up where it left off.
+export const saveDraftRemote = createAsyncThunk(
+  'reports/saveDraft',
+  async (_: void, { getState, rejectWithValue }) => {
+    const draft = (getState() as any).reports.currentDraft as Partial<DailyReport> | null;
+    if (!draft?.date) return rejectWithValue('No draft to save');
+    try {
+      return await reportService.saveDraft(draft);
+    } catch (err: any) {
+      return rejectWithValue(err.response?.data?.error || err.message);
+    }
+  }
+);
+
+/**
+ * Continues today's report: an unfinished local draft wins (it is the most
+ * recent), otherwise the server's autosaved draft is restored, otherwise a
+ * fresh one is started.
+ */
+export const resumeOrStartReport = createAsyncThunk(
+  'reports/resumeOrStart',
+  async (
+    { staffId, stallId, stallName }: { staffId: string; stallId: string; stallName: string },
+    { getState },
+  ) => {
+    const local = (getState() as any).reports.currentDraft as Partial<DailyReport> | null;
+    const today = new Date().toISOString().split('T')[0];
+    if (local && local.date === today) return { draft: local, resumed: false };
+
+    try {
+      const remote = await reportService.getDraft(today);
+      if (remote) return { draft: remote, resumed: true };
+    } catch {
+      // Offline or no draft on the server — fall through to a fresh report
+    }
+    return { draft: blankDraft({ staffId, stallId, stallName }), resumed: false };
+  }
+);
+
+/** Adds an optional photo (cart closing) to an already-submitted report. */
+export const attachReportPhoto = createAsyncThunk(
+  'reports/attachPhoto',
+  async (
+    { reportId, category, url }: { reportId: string; category: string; url: string },
+    { rejectWithValue },
+  ) => {
+    try {
+      return await reportService.addReportPhoto(reportId, category, url);
+    } catch (err: any) {
+      return rejectWithValue(err.response?.data?.error || 'Could not attach photo');
+    }
+  }
+);
+
 export const fetchTodayReport = createAsyncThunk(
   'reports/fetchToday',
   async (staffId: string, { rejectWithValue }) => {
@@ -70,21 +147,7 @@ const reportSlice = createSlice({
   initialState,
   reducers: {
     startNewReport: (state, action: PayloadAction<{ staffId: string; stallId: string; stallName: string }>) => {
-      state.currentDraft = {
-        id: `draft_${Date.now()}`,
-        staffId: action.payload.staffId,
-        stallId: action.payload.stallId,
-        staffName: '',
-        date: new Date().toISOString().split('T')[0],
-        status: 'draft',
-        flags: [],
-        photos: { cash: '', stock: '', milkPacket: '' },
-        openingStock: { milk: 0, sugar: 0, teaLeaves: 0, cups: 0, kulhadCups: 0, vegMomoPackets: 0, paneerMomoPackets: 0 },
-        purchases: { milk: 0, snacks: 0, vegMomoPackets: 0, paneerMomoPackets: 0 },
-        sales: { regularCups: 0, specialCups: 0, kulhadCups: 0, vegMomoPackets: 0, paneerMomoPackets: 0, snacks: 0 },
-        payments: { upi: 0, cash: 0 },
-        closingStock: { milk: 0, sugar: 0, teaLeaves: 0, cups: 0, kulhadCups: 0, vegMomoPackets: 0, paneerMomoPackets: 0 },
-      };
+      state.currentDraft = blankDraft(action.payload);
       state.currentStep = 0;
     },
     updateDraftSection: (state, action: PayloadAction<{ section: string; data: any }>) => {
@@ -107,22 +170,36 @@ const reportSlice = createSlice({
     clearDraft: (state) => {
       state.currentDraft = null;
       state.currentStep = 0;
+      state.draftSaveState = 'idle';
+      state.draftSavedAt = null;
     },
     setSyncPending: (state, action: PayloadAction<boolean>) => {
       state.syncPending = action.payload;
     },
-    preFillFromTally: (state, action: PayloadAction<TallyData>) => {
+    preFillFromTally: (state, action: PayloadAction<{ tally: TallyData; items: MenuItem[] }>) => {
       if (!state.currentDraft) return;
-      const tally = action.payload;
-      // Map tally counters to known sales fields
+      const { tally, items } = action.payload;
+      // Map tally counters to known sales fields. Portioned items tally in
+      // servings (half / full plate), so each serving is converted back to the
+      // item's stock unit before it lands on the report — a half plate counts
+      // as 0.5 packets, which is what opening/closing stock is measured in.
+      const stockFactorFor = (unitKey: string) => {
+        const { itemKey, portionKey } = splitUnitKey(unitKey);
+        const item = items.find(i => i.key === itemKey);
+        if (!item) return portionKey ? 0 : 1;
+        return getSellableUnits(item).find(u => u.unitKey === unitKey)?.stockFactor ?? 1;
+      };
+
       const salesPatch: Record<string, number> = {};
       Object.entries(tally.counters).forEach(([key, count]) => {
-        const field = ITEM_KEY_TO_SALES_FIELD[key];
-        if (field) salesPatch[field] = count;
+        const field = ITEM_KEY_TO_SALES_FIELD[splitUnitKey(key).itemKey];
+        if (!field) return;
+        salesPatch[field] = (salesPatch[field] || 0) + count * stockFactorFor(key);
       });
       state.currentDraft.sales = {
         ...(state.currentDraft.sales || {}),
         ...salesPatch,
+        cigarettes: tally.cigarettes || 0,
       } as any;
       state.currentDraft.payments = {
         upi: tally.upi,
@@ -138,6 +215,8 @@ const reportSlice = createSlice({
         state.todayReport = action.payload;
         state.currentDraft = null;
         state.currentStep = 0;
+        state.draftSaveState = 'idle';
+        state.draftSavedAt = null;
       })
       .addCase(submitDailyReport.rejected, (state, action) => {
         state.isSubmitting = false;
@@ -150,6 +229,28 @@ const reportSlice = createSlice({
       })
       .addCase(fetchTodayReport.fulfilled, (state, action) => {
         state.todayReport = action.payload;
+      })
+      .addCase(saveDraftRemote.pending, (state) => { state.draftSaveState = 'saving'; })
+      .addCase(saveDraftRemote.fulfilled, (state, action) => {
+        state.draftSaveState = 'saved';
+        state.draftSavedAt = (action.payload as string) || new Date().toISOString();
+      })
+      .addCase(saveDraftRemote.rejected, (state) => {
+        // Entries stay in the persisted local draft; the next edit retries
+        state.draftSaveState = 'error';
+      })
+      .addCase(resumeOrStartReport.fulfilled, (state, action) => {
+        state.currentDraft = action.payload.draft;
+        state.currentStep = 0;
+        if (action.payload.resumed) {
+          state.draftSaveState = 'saved';
+          state.draftSavedAt = (action.payload.draft as any)?.updatedAt || null;
+        }
+      })
+      .addCase(attachReportPhoto.fulfilled, (state, action) => {
+        state.todayReport = action.payload;
+        const idx = state.reports.findIndex(r => (r as any)._id === (action.payload as any)._id);
+        if (idx >= 0) state.reports[idx] = action.payload;
       });
   },
 });

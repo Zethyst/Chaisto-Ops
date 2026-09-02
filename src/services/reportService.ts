@@ -90,12 +90,59 @@ export const reportService = {
     return response.data;
   },
 
-  async uploadPhoto(uri: string, category: string, stallName: string): Promise<string> {
+  // ─── Draft autosave ────────────────────────────────────────────────────────
+  // The in-progress report lives on the server as well as on the device, so a
+  // lost phone or a reinstall does not cost the day's entries.
+  async getDraft(date?: string): Promise<Partial<DailyReport> | null> {
+    const params = { date: date || new Date().toISOString().split('T')[0] };
+    const response = await api.get('/reports/draft', { params });
+    return response.data || null;
+  },
+
+  async saveDraft(draft: Partial<DailyReport>): Promise<string> {
+    const response = await api.put('/reports/draft', {
+      date: draft.date,
+      stallId: draft.stallId,
+      data: draft,
+    });
+    return response.data?.savedAt;
+  },
+
+  async deleteDraft(date?: string): Promise<void> {
+    const params = { date: date || new Date().toISOString().split('T')[0] };
+    await api.delete('/reports/draft', { params });
+  },
+
+  /** Admin/moderator files a report for a staff member on a past date. */
+  async backfillReport(report: Partial<DailyReport> & { staffId: string; stallId: string; date: string }): Promise<DailyReport> {
+    const response = await api.post('/reports/backfill', report);
+    return response.data;
+  },
+
+  /** Attaches an optional photo (cart closing) to an already-submitted report. */
+  async addReportPhoto(reportId: string, category: string, url: string): Promise<DailyReport> {
+    const response = await api.patch(`/reports/${reportId}/photos`, { category, url });
+    return response.data;
+  },
+
+  /**
+   * Uploads to Cloudinary and returns the hosted URL.
+   * `opts.date` tags the photo with the day it documents rather than the day it
+   * was uploaded, and `opts.source` marks gallery uploads (admin backfills) so
+   * they are distinguishable from live captures in Cloudinary.
+   */
+  async uploadPhoto(
+    uri: string,
+    category: string,
+    stallName: string,
+    opts: { date?: string; source?: 'camera' | 'gallery' } = {},
+  ): Promise<string> {
+    const date = opts.date || new Date().toISOString().split('T')[0];
     const formData = new FormData();
     formData.append('file', { uri, type: 'image/jpeg', name: `${category}_${Date.now()}.jpg` } as any);
     formData.append('upload_preset', CLOUDINARY_CONFIG.UPLOAD_PRESET);
     formData.append('folder', `${CLOUDINARY_CONFIG.FOLDER}/${stallName}`);
-    formData.append('tags', [category, stallName, new Date().toISOString().split('T')[0]].join(','));
+    formData.append('tags', [category, stallName, date, opts.source ?? 'camera'].join(','));
 
     const response = await axios.post(
       `https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.CLOUD_NAME}/image/upload`,
