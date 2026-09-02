@@ -74,6 +74,22 @@ const reportSchema = new mongoose.Schema({
   isBackfill: { type: Boolean, default: false },
   enteredById: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   enteredByName: { type: String },
+
+  // Every admin correction to a submitted report, kept in full: the figures a
+  // staff member reported must stay traceable after someone changes them
+  editHistory: [{
+    editedById: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    editedByName: String,
+    editedAt: { type: Date, default: Date.now },
+    reason: String,
+    changes: [{
+      field: String,
+      from: mongoose.Schema.Types.Mixed,
+      to: mongoose.Schema.Types.Mixed,
+      _id: false,
+    }],
+    _id: false,
+  }],
   deviceId: String,
 
   // Server-computed (not trusted from client)
@@ -112,7 +128,13 @@ reportSchema.pre('save', function (next) {
   const { computed, flags, status } = computeAntiCheatMetrics(this);
   this.computed = computed;
   this.flags = flags;
-  this.status = status;
+
+  // An admin's verdict outlives a recompute — saving the document for an
+  // unrelated reason (attaching the cart photo, say) must not quietly drop a
+  // report back to "flagged" after it was reviewed or cleared. A route that
+  // does want the verdict re-derived resets the status before saving.
+  const adminDecided = this.status === 'reviewed' || this.status === 'cleared';
+  if (!adminDecided) this.status = status;
   next();
 });
 

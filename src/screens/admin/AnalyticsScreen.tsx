@@ -15,6 +15,7 @@ interface AnalyticsData {
   summary: {
     totalCups: number;
     totalMomoPackets: number;
+    totalMomoPieces?: number;
     totalRevenue: number;
     totalUPI: number;
     totalCash: number;
@@ -117,7 +118,7 @@ export default function AnalyticsScreen() {
         />
         <KpiCard
           label="Momo Packets" icon="🥟"
-          value={String(data?.summary.totalMomoPackets ?? 0)}
+          value={String(data?.summary.totalMomoPieces ?? 0)}
           sub={`${data?.summary.reportCount ?? 0} reports`}
           color={COLORS.primary}
         />

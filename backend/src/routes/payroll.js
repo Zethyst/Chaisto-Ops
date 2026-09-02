@@ -10,6 +10,7 @@ const router = express.Router();
 
 const DEFAULT_CUPS_INCENTIVE = 1;
 const DEFAULT_MOMO_INCENTIVE = 5;
+const DEFAULT_MOMO_PIECES_PER_PLATE = 10;
 
 // GET /v1/payroll/me — current staff's own monthly payroll breakdown
 router.get('/me', ...allRoles, async (req, res) => {
@@ -21,6 +22,8 @@ router.get('/me', ...allRoles, async (req, res) => {
     const stallConfig = user?.stallId ? await StallConfig.findOne({ stallId: user.stallId }) : null;
     const cupRate = stallConfig?.cupsIncentivePerCup ?? DEFAULT_CUPS_INCENTIVE;
     const momoRate = stallConfig?.momoIncentivePerPacket ?? DEFAULT_MOMO_INCENTIVE;
+    // Reports store momos as plate-equivalents; staff count them in pieces
+    const piecesPerPlate = stallConfig?.momoPiecesPerPlate ?? DEFAULT_MOMO_PIECES_PER_PLATE;
 
     const [cupAgg] = await Report.aggregate([
       {
@@ -64,8 +67,15 @@ router.get('/me', ...allRoles, async (req, res) => {
       baseSalary,
       totalCups,
       cupsIncentive,
+      cupRate,
+      // `totalMomoPackets` is plate-equivalents and can be fractional; pieces
+      // is what the staff actually counted and is what the app displays
       totalMomoPackets,
+      totalMomoPlates: totalMomoPackets,
+      totalMomoPieces: Math.round(totalMomoPackets * piecesPerPlate),
+      momoPiecesPerPlate: piecesPerPlate,
       momoIncentive,
+      momoRate,
       totalRevenue: cupAgg?.totalRevenue || 0,
       reportCount: cupAgg?.reportCount || 0,
       totalPay: baseSalary + cupsIncentive + momoIncentive,
@@ -97,6 +107,7 @@ router.get('/', ...adminOrModerator, async (req, res) => {
       return {
         cupRate: c?.cupsIncentivePerCup ?? DEFAULT_CUPS_INCENTIVE,
         momoRate: c?.momoIncentivePerPacket ?? DEFAULT_MOMO_INCENTIVE,
+        piecesPerPlate: c?.momoPiecesPerPlate ?? DEFAULT_MOMO_PIECES_PER_PLATE,
       };
     };
 
@@ -125,7 +136,7 @@ router.get('/', ...adminOrModerator, async (req, res) => {
     const payroll = staffList.map((s) => {
       const data = cupsMap[s._id.toString()] || { totalCups: 0, totalMomoPackets: 0, totalRevenue: 0, reportCount: 0 };
       const baseSalary = s.monthlySalary || 0;
-      const { cupRate, momoRate } = ratesFor(s.stallId);
+      const { cupRate, momoRate, piecesPerPlate } = ratesFor(s.stallId);
       const cupsIncentive = data.totalCups * cupRate;
       const momoIncentive = (data.totalMomoPackets || 0) * momoRate;
       return {
@@ -135,8 +146,13 @@ router.get('/', ...adminOrModerator, async (req, res) => {
         baseSalary,
         totalCups: data.totalCups,
         cupsIncentive,
+        cupRate,
         totalMomoPackets: data.totalMomoPackets || 0,
+        totalMomoPlates: data.totalMomoPackets || 0,
+        totalMomoPieces: Math.round((data.totalMomoPackets || 0) * piecesPerPlate),
+        momoPiecesPerPlate: piecesPerPlate,
         momoIncentive,
+        momoRate,
         totalRevenue: data.totalRevenue,
         reportCount: data.reportCount,
         totalPay: baseSalary + cupsIncentive + momoIncentive,

@@ -28,6 +28,7 @@ import PayrollScreen from '../screens/admin/PayrollScreen';
 import MenuPricingScreen from '../screens/admin/MenuPricingScreen';
 import ReportsListScreen from '../screens/admin/ReportsListScreen';
 import BackfillReportScreen from '../screens/admin/BackfillReportScreen';
+import EditReportScreen from '../screens/admin/EditReportScreen';
 import StallManagementScreen from '../screens/admin/StallManagementScreen';
 
 // Staff
@@ -159,6 +160,7 @@ function AdminStack() {
       <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ ...headerOpts, title: 'Notifications' }} />
       <Stack.Screen name="ReportsList" component={ReportsListScreen} options={{ ...headerOpts, title: 'Daily Reports' }} />
       <Stack.Screen name="BackfillReport" component={BackfillReportScreen} options={{ ...headerOpts, title: 'Add Past Report' }} />
+      <Stack.Screen name="EditReport" component={EditReportScreen} options={{ ...headerOpts, title: 'Edit Report' }} />
       <Stack.Screen name="StallManagement" component={StallManagementScreen} options={{ ...headerOpts, title: 'Stall Management' }} />
     </Stack.Navigator>
   );

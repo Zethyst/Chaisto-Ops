@@ -62,14 +62,20 @@ router.get('/summary', ...adminOrModerator, async (req, res) => {
 
 // POST /v1/attendance — mark attendance (admin/mod only)
 router.post('/', ...adminOrModerator, [
-  body('userId').notEmpty(),
-  body('userName').notEmpty(),
-  body('stallId').notEmpty(),
-  body('date').matches(/^\d{4}-\d{2}-\d{2}$/),
-  body('status').isIn(['present', 'absent', 'halfday', 'leave']),
+  body('userId').notEmpty().withMessage('Staff member is required'),
+  body('userName').notEmpty().withMessage('Staff name is required'),
+  body('stallId').notEmpty().withMessage('This staff member has no stall assigned'),
+  body('date').matches(/^\d{4}-\d{2}-\d{2}$/).withMessage('Date must be YYYY-MM-DD'),
+  body('status').isIn(['present', 'absent', 'halfday', 'leave']).withMessage('Pick a valid status'),
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+  // Past days are expected — attendance is often entered late — but a day that
+  // hasn't happened yet cannot be attended
+  if (req.body.date > new Date().toISOString().split('T')[0]) {
+    return res.status(400).json({ error: 'Cannot mark attendance for a future date' });
+  }
 
   try {
     const record = await Attendance.findOneAndUpdate(

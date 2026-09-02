@@ -480,3 +480,41 @@ describe('computeAntiCheatMetrics — non-unit sales (snacks and cigarettes)', (
     expect(flagTypes(computeAntiCheatMetrics(report))).toContain('revenue_mismatch');
   });
 });
+
+describe('admin verdict survives a recompute', () => {
+  // Mirrors the Report pre-save hook: an admin's decision is not re-derived,
+  // so saving a reviewed report for an unrelated reason (attaching the
+  // cart-closing photo) must not drop it back to flagged.
+  const applyHook = (doc) => {
+    const { computed, flags, status } = computeAntiCheatMetrics(doc);
+    const adminDecided = doc.status === 'reviewed' || doc.status === 'cleared';
+    return { ...doc, computed, flags, status: adminDecided ? doc.status : status };
+  };
+
+  const flaggable = () => baseline({
+    sales: { regularCups: 10, specialCups: 0, kulhadCups: 0, vegMomoPackets: 6, paneerMomoPackets: 6 },
+  });
+
+  it('leaves a reviewed report reviewed', () => {
+    const saved = applyHook({ ...flaggable(), status: 'reviewed' });
+    expect(saved.status).toBe('reviewed');
+    // the flags themselves are still recomputed and visible
+    expect(saved.flags.length).toBeGreaterThan(0);
+  });
+
+  it('leaves a cleared report cleared', () => {
+    expect(applyHook({ ...flaggable(), status: 'cleared' }).status).toBe('cleared');
+  });
+
+  it('still re-derives the status of an unreviewed report', () => {
+    expect(applyHook({ ...flaggable(), status: 'submitted' }).status).toBe('flagged');
+  });
+
+  it('re-derives after an edit resets the status', () => {
+    // The edit route sets status back to 'submitted' precisely so corrected
+    // figures get a fresh verdict
+    const corrected = applyHook({ ...baseline(), status: 'submitted' });
+    expect(corrected.status).toBe('submitted');
+    expect(corrected.flags).toEqual([]);
+  });
+});

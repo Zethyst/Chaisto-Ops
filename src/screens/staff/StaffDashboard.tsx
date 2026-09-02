@@ -205,11 +205,13 @@ export default function StaffDashboard({ navigation }: any) {
             </View>
             <View style={styles.incomeStatDivider} />
             <View style={styles.incomeStat}>
-              <Text style={styles.incomeCupCount}>{payroll?.totalMomoPackets || 0}</Text>
+              <Text style={styles.incomeCupCount}>{payroll?.totalMomoPieces ?? 0}</Text>
               <Text style={styles.incomeCupLabel}>{t('momos')}</Text>
             </View>
           </View>
-          <Text style={styles.incomePerCup}>₹1/cup · ₹5/momo</Text>
+          <Text style={styles.incomePerCup}>
+            ₹{payroll?.cupRate ?? 1}/cup · ₹{payroll?.momoRate ?? 5}/plate
+          </Text>
         </View>
       </View>
 

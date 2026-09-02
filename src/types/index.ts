@@ -118,6 +118,14 @@ export interface DailyReport {
   isBackfill?: boolean;
   enteredByName?: string;
 
+  /** Every admin correction, so the staff member's original figures stay traceable */
+  editHistory?: {
+    editedByName?: string;
+    editedAt?: string;
+    reason?: string;
+    changes: { field: string; from: number; to: number }[];
+  }[];
+
   computed: {
     totalRevenue: number;
     expectedCupsFromMilk: number;
@@ -155,7 +163,9 @@ export interface PhotoCapture {
 
 export interface AnalyticsSummary {
   totalCups: number;
+  /** Plate-equivalents — fractional; prefer `totalMomoPieces` for display */
   totalMomoPackets?: number;
+  totalMomoPieces?: number;
   totalRevenue: number;
   upiRevenue: number;
   cashRevenue: number;
@@ -230,8 +240,15 @@ export interface PayrollSummary {
   baseSalary: number;
   totalCups: number;
   cupsIncentive: number;
+  cupRate?: number;
+  /** Plate-equivalents — can be fractional; prefer `totalMomoPieces` for display */
   totalMomoPackets?: number;
+  totalMomoPlates?: number;
+  /** Whole momos, which is how staff count them */
+  totalMomoPieces?: number;
+  momoPiecesPerPlate?: number;
   momoIncentive?: number;
+  momoRate?: number;
   totalRevenue: number;
   reportCount: number;
   totalPay: number;
@@ -319,6 +336,7 @@ export type RootStackParamList = {
   Settings: undefined;
   ReportDetail: { reportId: string };
   BackfillReport: undefined;
+  EditReport: { reportId: string };
   AddStaff: undefined;
   ExpenseTracker: undefined;
   WastageLog: undefined;

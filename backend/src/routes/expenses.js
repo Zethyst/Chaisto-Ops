@@ -31,10 +31,11 @@ router.get('/', ...allRoles, async (req, res) => {
 
 // POST /v1/expenses — log an expense
 router.post('/', ...allRoles, [
-  body('stallId').notEmpty(),
-  body('category').isIn(['gas', 'supplies', 'maintenance', 'equipment', 'other']),
-  body('amount').isFloat({ min: 1 }),
-  body('date').matches(/^\d{4}-\d{2}-\d{2}$/),
+  body('stallId').notEmpty().withMessage('Pick a stall to log this expense against'),
+  body('category').isIn(['gas', 'supplies', 'maintenance', 'equipment', 'other'])
+    .withMessage('Pick a valid category'),
+  body('amount').isFloat({ min: 1 }).withMessage('Amount must be at least ₹1'),
+  body('date').matches(/^\d{4}-\d{2}-\d{2}$/).withMessage('Date must be YYYY-MM-DD'),
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });

@@ -27,12 +27,15 @@ export default function ReportDetailScreen({ route, navigation }: any) {
   const [aiNarrative, setAiNarrative] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
 
-  useEffect(() => {
-    reportService.getReportById(reportId)
-      .then(setReport)
-      .catch(() => showAlert('Error', 'Could not load report.'))
-      .finally(() => setIsLoading(false));
-  }, [reportId]);
+  const loadReport = () => reportService.getReportById(reportId)
+    .then(setReport)
+    .catch(() => showAlert('Error', 'Could not load report.'))
+    .finally(() => setIsLoading(false));
+
+  useEffect(() => { loadReport(); }, [reportId]);
+
+  // Coming back from the edit screen, the figures on screen are stale
+  useEffect(() => navigation.addListener('focus', loadReport), [navigation, reportId]);
 
   const handleReview = async (status: 'reviewed' | 'flagged') => {
     haptics.heavy();
@@ -253,6 +256,40 @@ export default function ReportDetailScreen({ route, navigation }: any) {
         </View>
       </Section>
 
+      {/* Corrections made after submission */}
+      {!!report.editHistory?.length && (
+        <Section title="✏️ Edit History">
+          {report.editHistory.map((entry, i) => (
+            <View key={i} style={styles.editEntry}>
+              <Text style={styles.editEntryHead}>
+                {entry.editedByName || 'An admin'}
+                {entry.editedAt
+                  ? ` · ${new Date(entry.editedAt).toLocaleString('en-IN', {
+                      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                    })}`
+                  : ''}
+              </Text>
+              {!!entry.reason && <Text style={styles.editReason}>“{entry.reason}”</Text>}
+              {entry.changes.map((c, j) => (
+                <Text key={j} style={styles.editChange}>
+                  {c.field}: {c.from} → {c.to}
+                </Text>
+              ))}
+            </View>
+          ))}
+        </Section>
+      )}
+
+      {/* Correct the figures */}
+      {isAdmin && (
+        <TouchableOpacity
+          style={styles.editBtn}
+          onPress={() => { haptics.light(); navigation.navigate('EditReport', { reportId }); }}
+        >
+          <Text style={styles.editBtnText}>✏️  Edit Figures</Text>
+        </TouchableOpacity>
+      )}
+
       {/* Admin Review */}
       {isAdmin && report.status !== 'reviewed' && (
         <Section title="Admin Review">
@@ -370,6 +407,20 @@ const styles = StyleSheet.create({
   date: { fontSize: FONT_SIZE.sm, color: COLORS.muted, marginTop: 4 },
   statusBadge: { borderRadius: BORDER_RADIUS.full, paddingHorizontal: 12, paddingVertical: 4 },
   statusText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
+
+  editBtn: {
+    marginHorizontal: SPACING.lg, marginTop: SPACING.md,
+    borderWidth: 1.5, borderColor: COLORS.primary, borderStyle: 'dashed',
+    borderRadius: BORDER_RADIUS.md, paddingVertical: SPACING.md, alignItems: 'center',
+  },
+  editBtnText: { color: COLORS.primary, fontWeight: '800', fontSize: FONT_SIZE.md },
+
+  editEntry: {
+    paddingVertical: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight,
+  },
+  editEntryHead: { fontSize: FONT_SIZE.sm, fontWeight: '700', color: COLORS.dark },
+  editReason: { fontSize: FONT_SIZE.sm, color: COLORS.muted, fontStyle: 'italic', marginTop: 2 },
+  editChange: { fontSize: FONT_SIZE.sm, color: COLORS.medium, marginTop: 2 },
 
   backfillBanner: {
     flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm,

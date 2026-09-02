@@ -30,9 +30,9 @@ router.get('/', ...allRoles, async (req, res) => {
 
 // POST /v1/wastage
 router.post('/', ...allRoles, [
-  body('stallId').notEmpty(),
-  body('date').matches(/^\d{4}-\d{2}-\d{2}$/),
-  body('items').isArray({ min: 1 }),
+  body('stallId').notEmpty().withMessage('Pick a stall to log this wastage against'),
+  body('date').matches(/^\d{4}-\d{2}-\d{2}$/).withMessage('Date must be YYYY-MM-DD'),
+  body('items').isArray({ min: 1 }).withMessage('Log at least one wasted item'),
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });

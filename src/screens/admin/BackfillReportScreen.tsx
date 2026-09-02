@@ -5,39 +5,19 @@ import {
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useSelector } from 'react-redux';
-import { RootState } from '../../store';
 import { showAlert } from '../../components/AppAlert';
 import { authService } from '../../services/authService';
 import { reportService } from '../../services/reportService';
 import { User } from '../../types';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS, PHOTO_CATEGORIES } from '../../constants';
+import DateStrip, { recentDates } from '../../components/DateStrip';
+import ReportFiguresForm, { emptyFigures, ReportFigures, FigureSection } from '../../components/ReportFiguresForm';
 import { haptics } from '../../utils/haptics';
 
 const BACKFILL_DAYS = 14;
 
-/** The last N days, newest first, excluding today's date at index 0's label. */
-function recentDates(count: number) {
-  return Array.from({ length: count }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    return {
-      value: d.toISOString().split('T')[0],
-      label: d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
-      weekday: d.toLocaleDateString('en-IN', { weekday: 'short' }),
-      isToday: i === 0,
-    };
-  });
-}
-
-type Section = 'openingStock' | 'purchases' | 'sales' | 'payments' | 'closingStock';
-
 export default function BackfillReportScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
-  const { milkMlPerPacket, momoPiecesPerPlate } = useSelector((s: RootState) => s.menu);
-  const milkPacketsPerLitre = milkMlPerPacket > 0 ? 1000 / milkMlPerPacket : 2;
-  const piecesPerPlate = momoPiecesPerPlate > 0 ? momoPiecesPerPlate : 1;
-
   const dates = useMemo(() => recentDates(BACKFILL_DAYS), []);
 
   const [staff, setStaff] = useState<User[]>([]);
@@ -50,13 +30,7 @@ export default function BackfillReportScreen({ navigation }: any) {
   const [photos, setPhotos] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState<string | null>(null);
 
-  const [form, setForm] = useState<Record<Section, Record<string, number>>>({
-    openingStock: {},
-    purchases: {},
-    sales: {},
-    payments: {},
-    closingStock: {},
-  });
+  const [form, setForm] = useState<ReportFigures>(emptyFigures());
 
   useEffect(() => {
     authService.getUsers()
@@ -65,10 +39,10 @@ export default function BackfillReportScreen({ navigation }: any) {
       .finally(() => setLoadingStaff(false));
   }, []);
 
-  const set = (section: Section, key: string, value: number) =>
+  const set = (section: FigureSection, key: string, value: number) =>
     setForm(prev => ({ ...prev, [section]: { ...prev[section], [key]: value } }));
 
-  const get = (section: Section, key: string) => form[section][key] ?? 0;
+  const get = (section: FigureSection, key: string) => form[section][key] ?? 0;
 
   const totalCups = get('sales', 'regularCups') + get('sales', 'specialCups') + get('sales', 'kulhadCups');
   const collected = get('payments', 'upi') + get('payments', 'cash');
@@ -171,19 +145,6 @@ export default function BackfillReportScreen({ navigation }: any) {
     });
   };
 
-  // A render helper, deliberately not a component — a component declared inside
-  // the screen would be a new type on every render, remounting each input and
-  // dropping keyboard focus mid-entry.
-  const field = (section: Section, name: string, label: string, unit: string, factor?: number) => (
-    <NumField
-      key={`${section}.${name}`}
-      label={label}
-      unit={unit}
-      value={factor ? get(section, name) * factor : get(section, name)}
-      onChange={(v) => set(section, name, factor ? v / factor : v)}
-    />
-  );
-
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 120 }]}>
@@ -224,61 +185,9 @@ export default function BackfillReportScreen({ navigation }: any) {
 
         {/* Date */}
         <Text style={styles.sectionTitle}>DATE</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dateStrip}>
-          {dates.map((d) => {
-            const active = selectedDate === d.value;
-            return (
-              <TouchableOpacity
-                key={d.value}
-                style={[styles.dateChip, active && styles.dateChipActive]}
-                onPress={() => { haptics.selection(); setSelectedDate(d.value); }}
-              >
-                <Text style={[styles.dateWeekday, active && styles.dateTextActive]}>
-                  {d.isToday ? 'Today' : d.weekday}
-                </Text>
-                <Text style={[styles.dateLabel, active && styles.dateTextActive]}>{d.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <DateStrip value={selectedDate} onChange={setSelectedDate} days={BACKFILL_DAYS} />
 
-        {/* Sales */}
-        <Text style={styles.sectionTitle}>SALES</Text>
-        <View style={styles.card}>
-          {field("sales", "regularCups", "Regular chai", "cups")}
-          {field("sales", "specialCups", "Special chai", "cups")}
-          {field("sales", "kulhadCups", "Kulhad chai", "cups")}
-          {field("sales", "vegMomoPackets", "Veg momos", "pieces", piecesPerPlate)}
-          {field("sales", "paneerMomoPackets", "Paneer momos", "pieces", piecesPerPlate)}
-          {field("sales", "snacks", "Snacks sold", "₹")}
-          {field("sales", "cigarettes", "Cigarettes sold", "₹")}
-        </View>
-
-        {/* Payments */}
-        <Text style={styles.sectionTitle}>PAYMENTS COLLECTED</Text>
-        <View style={styles.card}>
-          {field("payments", "upi", "UPI", "₹")}
-          {field("payments", "cash", "Cash", "₹")}
-        </View>
-
-        {/* Stock */}
-        <Text style={styles.sectionTitle}>OPENING STOCK</Text>
-        <View style={styles.card}>
-          {field("openingStock", "milk", "Milk", "packets", milkPacketsPerLitre)}
-          {field("openingStock", "cups", "Paper cups", "count")}
-          {field("openingStock", "kulhadCups", "Kulhad cups", "count")}
-          {field("openingStock", "vegMomoPackets", "Veg momos", "pieces", piecesPerPlate)}
-          {field("openingStock", "paneerMomoPackets", "Paneer momos", "pieces", piecesPerPlate)}
-        </View>
-
-        <Text style={styles.sectionTitle}>PURCHASES</Text>
-        <View style={styles.card}>
-          {field("purchases", "milk", "Milk purchased", "packets", milkPacketsPerLitre)}
-          {field("purchases", "vegMomoPackets", "Veg momos purchased", "pieces", piecesPerPlate)}
-          {field("purchases", "paneerMomoPackets", "Paneer momos purchased", "pieces", piecesPerPlate)}
-          {field("purchases", "snacks", "Snacks purchased", "₹")}
-          {field("purchases", "cigarettes", "Cigarettes purchased", "₹")}
-        </View>
+        <ReportFiguresForm values={form} onChange={set} />
 
         {/* Photos — optional, uploaded from the gallery since the day has passed */}
         <Text style={styles.sectionTitle}>PHOTOS (OPTIONAL)</Text>
@@ -319,14 +228,6 @@ export default function BackfillReportScreen({ navigation }: any) {
           })}
         </View>
 
-        <Text style={styles.sectionTitle}>CLOSING STOCK</Text>
-        <View style={styles.card}>
-          {field("closingStock", "milk", "Milk remaining", "packets", milkPacketsPerLitre)}
-          {field("closingStock", "cups", "Paper cups remaining", "count")}
-          {field("closingStock", "kulhadCups", "Kulhad cups remaining", "count")}
-          {field("closingStock", "vegMomoPackets", "Veg momos remaining", "pieces", piecesPerPlate)}
-          {field("closingStock", "paneerMomoPackets", "Paneer momos remaining", "pieces", piecesPerPlate)}
-        </View>
       </ScrollView>
 
       {/* Sticky action */}
@@ -348,34 +249,6 @@ export default function BackfillReportScreen({ navigation }: any) {
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
-  );
-}
-
-/** Kept outside the screen so re-rendering the form does not remount inputs. */
-function NumField({ label, value, onChange, unit }: {
-  label: string; value: number; onChange: (v: number) => void; unit: string;
-}) {
-  const [raw, setRaw] = useState(value === 0 ? '' : String(value));
-
-  return (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <View style={styles.inputRow}>
-        <TextInput
-          style={styles.input}
-          keyboardType="decimal-pad"
-          value={raw}
-          onChangeText={(t) => {
-            setRaw(t);
-            const n = parseFloat(t);
-            onChange(isNaN(n) ? 0 : n);
-          }}
-          placeholder="0"
-          placeholderTextColor={COLORS.muted}
-        />
-        <Text style={styles.unit}>{unit}</Text>
-      </View>
-    </View>
   );
 }
 
@@ -410,32 +283,11 @@ const styles = StyleSheet.create({
   chipSub: { fontSize: 11, color: COLORS.muted, marginTop: 1 },
   chipSubActive: { color: 'rgba(255,255,255,0.8)' },
 
-  dateStrip: { flexGrow: 0 },
-  dateChip: {
-    backgroundColor: COLORS.white, borderRadius: BORDER_RADIUS.md,
-    paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
-    borderWidth: 1, borderColor: COLORS.border, marginRight: SPACING.sm,
-    alignItems: 'center', minWidth: 64,
-  },
-  dateChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  dateWeekday: { fontSize: 11, color: COLORS.muted, fontWeight: '600' },
-  dateLabel: { fontSize: FONT_SIZE.md, fontWeight: '800', color: COLORS.black, marginTop: 1 },
-  dateTextActive: { color: '#fff' },
-
   card: {
     backgroundColor: COLORS.white, borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg, borderWidth: 1, borderColor: COLORS.border, ...SHADOWS.sm,
   },
 
-  field: { marginBottom: SPACING.md },
-  fieldLabel: { fontSize: FONT_SIZE.sm, fontWeight: '600', color: COLORS.dark, marginBottom: 6 },
-  inputRow: {
-    flexDirection: 'row', alignItems: 'center',
-    borderWidth: 1, borderColor: COLORS.border, borderRadius: BORDER_RADIUS.sm,
-    backgroundColor: COLORS.surface, paddingHorizontal: SPACING.md, minHeight: 48,
-  },
-  input: { flex: 1, fontSize: FONT_SIZE.md, color: COLORS.black, fontWeight: '600' },
-  unit: { fontSize: FONT_SIZE.sm, color: COLORS.primaryLight, fontWeight: '700' },
 
   photoNote: { fontSize: FONT_SIZE.sm, color: COLORS.muted, lineHeight: 20, marginBottom: SPACING.md },
   photoRow: {

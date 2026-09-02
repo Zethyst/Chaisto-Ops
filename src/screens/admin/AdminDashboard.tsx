@@ -97,7 +97,8 @@ export default function AdminDashboard({ navigation }: any) {
   // ─── Derived values ────────────────────────────────────────────────────────
   const summary = analytics?.summary ?? {};
   const totalCups = summary.totalCups ?? 0;
-  const totalMomoPackets = summary.totalMomoPackets ?? 0;
+  // Whole momos, not the fractional plate-equivalents reports are stored in
+  const totalMomoPieces = summary.totalMomoPieces ?? 0;
   const totalRevenue = summary.totalRevenue ?? 0;
   const totalUPI = summary.totalUPI ?? 0;
   const flaggedCount = summary.flaggedCount ?? 0;
@@ -227,7 +228,7 @@ export default function AdminDashboard({ navigation }: any) {
             />
             <KpiCard
               label="Momos"
-              value={totalMomoPackets.toLocaleString('en-IN')}
+              value={totalMomoPieces.toLocaleString('en-IN')}
               sub={`${summary.reportCount ?? 0} ${t('reportsThisPeriod').toLowerCase()}`}
               color={COLORS.primaryLight}
               icon="🥟"

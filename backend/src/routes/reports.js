@@ -4,6 +4,7 @@ const Report = require('../models/Report');
 const ReportDraft = require('../models/ReportDraft');
 const { Stall } = require('../models/Stall');
 const User = require('../models/User');
+const StallConfig = require('../models/StallConfig');
 const { authenticate, authorize, adminOnly, adminOrModerator, allRoles } = require('../middleware/auth');
 const notificationService = require('../services/notificationService');
 const { deviceService } = require('../services/deviceService');
@@ -340,6 +341,75 @@ router.patch('/:id/review', ...adminOrModerator, async (req, res) => {
   }
 });
 
+// ─── PATCH /reports/:id — Admin corrects a submitted report's figures ────────
+// Only the numbers are editable. Who reported it, when, the photos and the GPS
+// are the evidence trail and stay fixed; every change is recorded on the report
+// itself so the staff member's original figures remain traceable.
+const EDITABLE_SECTIONS = ['openingStock', 'purchases', 'sales', 'payments', 'closingStock'];
+
+router.patch('/:id', ...adminOrModerator, async (req, res) => {
+  try {
+    const report = await Report.findById(req.params.id);
+    if (!report) return res.status(404).json({ error: 'Report not found' });
+
+    const changes = [];
+    EDITABLE_SECTIONS.forEach((section) => {
+      const incoming = req.body[section];
+      if (!incoming || typeof incoming !== 'object') return;
+
+      Object.entries(incoming).forEach(([field, rawValue]) => {
+        const value = Number(rawValue);
+        if (!Number.isFinite(value) || value < 0) return;
+
+        const previous = report[section]?.[field] ?? 0;
+        if (previous === value) return;
+
+        changes.push({ field: `${section}.${field}`, from: previous, to: value });
+        report[section][field] = value;
+      });
+      report.markModified(section);
+    });
+
+    if (changes.length === 0) {
+      return res.status(400).json({ error: 'Nothing changed' });
+    }
+
+    report.editHistory.push({
+      editedById: req.user._id,
+      editedByName: req.user.name,
+      editedAt: new Date(),
+      reason: typeof req.body.reason === 'string' ? req.body.reason.slice(0, 300) : undefined,
+      changes,
+    });
+
+    // Corrected figures deserve a fresh verdict, so drop any prior review and
+    // let the pre-save anti-cheat pass decide the status again
+    report.status = 'submitted';
+    await report.save();
+
+    await AuditLog.create({
+      actorId: req.user._id,
+      actorName: req.user.name,
+      actorRole: req.user.role,
+      action: 'report_edited',
+      entity: 'Report',
+      entityId: report._id,
+      details: {
+        staffName: report.staffName,
+        date: report.date,
+        changes,
+        reason: req.body.reason,
+      },
+      ip: req.ip,
+    }).catch(() => {}); // non-blocking
+
+    res.json(report);
+  } catch (err) {
+    console.error('Edit report error:', err);
+    res.status(500).json({ error: 'Could not update report' });
+  }
+});
+
 // ─── PATCH /reports/:id/photos — Attach an optional photo after submission ───
 // The three required photos are locked at submission time; only optional ones
 // (the cart-closing shot, taken when the stall actually shuts) can be added
@@ -428,6 +498,26 @@ router.get('/analytics/summary', ...adminOrModerator, async (req, res) => {
       { $sort: { _id: 1 } },
     ]);
 
+    // Momos are stored as plate-equivalents (fractional). Converting to whole
+    // pieces has to happen per stall, since each stall sets its own plate size.
+    const momoByStall = await Report.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: '$stallId',
+          plates: { $sum: { $add: ['$sales.vegMomoPackets', '$sales.paneerMomoPackets'] } },
+        },
+      },
+    ]);
+    const momoConfigs = await StallConfig.find({
+      stallId: { $in: momoByStall.map((m) => m._id).filter(Boolean) },
+    }).select('stallId momoPiecesPerPlate');
+    const piecesPerPlateFor = (id) => momoConfigs
+      .find((c) => c.stallId?.toString() === id?.toString())?.momoPiecesPerPlate ?? 10;
+    const totalMomoPieces = Math.round(
+      momoByStall.reduce((sum, m) => sum + (m.plates || 0) * piecesPerPlateFor(m._id), 0)
+    );
+
     const staffPerf = await Report.aggregate([
       { $match: match },
       {
@@ -445,7 +535,13 @@ router.get('/analytics/summary', ...adminOrModerator, async (req, res) => {
     ]);
 
     res.json({
-      summary: summary || { totalCups: 0, totalMomoPackets: 0, totalRevenue: 0, totalUPI: 0, totalCash: 0, reportCount: 0, flaggedCount: 0 },
+      summary: {
+        ...(summary || {
+          totalCups: 0, totalMomoPackets: 0, totalRevenue: 0,
+          totalUPI: 0, totalCash: 0, reportCount: 0, flaggedCount: 0,
+        }),
+        totalMomoPieces,
+      },
       daily,
       staffPerformance: staffPerf,
     });

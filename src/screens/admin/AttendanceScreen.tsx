@@ -11,6 +11,9 @@ import { authService } from '../../services/authService';
 import { AttendanceRecord } from '../../types';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
 import { haptics } from '../../utils/haptics';
+import { apiErrorMessage } from '../../utils/apiError';
+import { useLoggingStall } from '../shared/useLoggingStall';
+import DateStrip from '../../components/DateStrip';
 
 const STATUSES: { key: AttendanceRecord['status']; label: string; color: string; bg: string }[] = [
   { key: 'present', label: 'Present', color: COLORS.success, bg: COLORS.successBg },
@@ -29,6 +32,8 @@ function daysInMonth(m: string) {
 export default function AttendanceScreen() {
   const { user } = useSelector((s: RootState) => s.auth);
   const isAdmin = user?.role === 'admin' || user?.role === 'moderator';
+  // Fallback stall for staff whose account has none set
+  const { selectedStallId: fallbackStallId } = useLoggingStall();
 
   const [month, setMonth] = useState(currentMonth());
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
@@ -70,17 +75,31 @@ export default function AttendanceScreen() {
 
   useEffect(() => { load(); }, [month]);
 
+  // The day strip reaches back past the 1st, so follow the selected day into
+  // the previous month — otherwise its existing records and summary are missing
+  useEffect(() => {
+    const selectedMonth = selectedDate.slice(0, 7);
+    if (selectedMonth !== month) setMonth(selectedMonth);
+  }, [selectedDate]);
+
   const openMarkModal = (staffMember: any) => {
     haptics.light();
     setSelectedStaff(staffMember);
-    setSelectedDate(today());
-    setSelectedStatus('present');
+    // Pre-select whatever is already recorded for the chosen day, so reopening
+    // a marked day shows its current status rather than defaulting to Present
+    const existing = getRecord(staffMember.id || staffMember._id, selectedDate);
+    setSelectedStatus(existing?.status ?? 'present');
     setMarkError(null);
     setMarkModal(true);
   };
 
   const handleMark = async () => {
     if (!selectedStaff) return;
+    const stallId = selectedStaff.stallId || user?.stallId || fallbackStallId;
+    if (!stallId) {
+      setMarkError(`${selectedStaff.name} has no stall assigned — assign one in Staff Management first.`);
+      return;
+    }
     setMarkError(null);
     haptics.medium();
     setSaving(true);
@@ -88,7 +107,7 @@ export default function AttendanceScreen() {
       await attendanceService.markAttendance({
         userId: selectedStaff.id || selectedStaff._id,
         userName: selectedStaff.name,
-        stallId: selectedStaff.stallId || user!.stallId!,
+        stallId,
         date: selectedDate,
         status: selectedStatus,
       });
@@ -97,7 +116,7 @@ export default function AttendanceScreen() {
       load();
     } catch (err: any) {
       haptics.error();
-      setMarkError(err.response?.data?.error || 'Could not mark attendance. Please try again.');
+      setMarkError(apiErrorMessage(err, 'Could not mark attendance. Please try again.'));
     } finally {
       setSaving(false);
     }
@@ -111,13 +130,6 @@ export default function AttendanceScreen() {
     const st = STATUSES.find((x) => x.key === s);
     return { bg: st?.bg || COLORS.surface, color: st?.color || COLORS.muted, label: st?.label || s };
   };
-
-  // Build last 7 days for quick view
-  const last7 = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    return d.toISOString().split('T')[0];
-  }).reverse();
 
   if (loading) {
     return <View style={styles.center}><ActivityIndicator color={COLORS.primary} size="large" /></View>;
@@ -188,15 +200,23 @@ export default function AttendanceScreen() {
           </View>
         )}
 
-        {/* Staff list for marking */}
+        {/* Day being marked — attendance is often entered a few days late */}
         <Text style={styles.sectionTitle}>Mark Attendance</Text>
+        <View style={styles.dateStripWrap}>
+          <DateStrip value={selectedDate} onChange={setSelectedDate} days={14} />
+        </View>
+        <Text style={styles.dateHint}>
+          {selectedDate === today()
+            ? "Marking today — pick a day above to record a date you missed"
+            : `Marking ${new Date(selectedDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}`}
+        </Text>
         {staffList.length === 0 ? (
           <Text style={styles.noStaff}>No staff members found</Text>
         ) : (
           staffList.map((s: any) => {
             const sid = s.id || s._id;
-            const todayRec = getRecord(sid, today());
-            const ts = todayRec ? statusStyle(todayRec.status) : null;
+            const dayRec = getRecord(sid, selectedDate);
+            const ts = dayRec ? statusStyle(dayRec.status) : null;
             return (
               <TouchableOpacity key={sid} style={styles.staffRow} onPress={() => openMarkModal(s)}>
                 <View style={styles.staffAvatar}>
@@ -213,6 +233,7 @@ export default function AttendanceScreen() {
                 ) : (
                   <Text style={styles.markBtn}>Mark ›</Text>
                 )}
+                <Text style={styles.rowChevron}>›</Text>
               </TouchableOpacity>
             );
           })
@@ -224,7 +245,13 @@ export default function AttendanceScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Mark Attendance</Text>
-            {selectedStaff && <Text style={styles.modalSubTitle}>{selectedStaff.name} · {selectedDate}</Text>}
+            {selectedStaff && (
+              <Text style={styles.modalSubTitle}>
+                {selectedStaff.name} · {new Date(selectedDate).toLocaleDateString('en-IN', {
+                  weekday: 'short', day: 'numeric', month: 'long', year: 'numeric',
+                })}
+              </Text>
+            )}
 
             {markError && (
               <View style={styles.errorBanner}>
@@ -294,6 +321,12 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 11, fontWeight: '700' },
 
   sectionTitle: { fontSize: FONT_SIZE.lg, fontWeight: '700', color: COLORS.black, paddingHorizontal: SPACING.xl, marginVertical: SPACING.md },
+  dateStripWrap: { paddingHorizontal: SPACING.xl },
+  dateHint: {
+    fontSize: FONT_SIZE.sm, color: COLORS.muted,
+    paddingHorizontal: SPACING.xl, marginTop: SPACING.sm, marginBottom: SPACING.md,
+  },
+  rowChevron: { fontSize: 22, color: COLORS.border, fontWeight: '700', marginLeft: SPACING.sm },
   noStaff: { fontSize: FONT_SIZE.md, color: COLORS.muted, paddingHorizontal: SPACING.xl },
 
   staffRow: {

@@ -119,6 +119,19 @@ export const reportService = {
     return response.data;
   },
 
+  /**
+   * Admin/moderator corrects a submitted report's figures. Only the numbers are
+   * editable; the server records every change on the report.
+   */
+  async updateReportFigures(
+    reportId: string,
+    figures: Record<string, Record<string, number>>,
+    reason?: string,
+  ): Promise<DailyReport> {
+    const response = await api.patch(`/reports/${reportId}`, { ...figures, reason });
+    return response.data;
+  },
+
   /** Attaches an optional photo (cart closing) to an already-submitted report. */
   async addReportPhoto(reportId: string, category: string, url: string): Promise<DailyReport> {
     const response = await api.patch(`/reports/${reportId}/photos`, { category, url });

@@ -40,7 +40,7 @@ export default function PnLReportScreen() {
   const [wastage, setWastage] = useState(0);
   const [reportCount, setReportCount] = useState(0);
   const [totalCups, setTotalCups] = useState(0);
-  const [totalMomoPackets, setTotalMomoPackets] = useState(0);
+  const [totalMomoPieces, setTotalMomoPieces] = useState(0);
 
   const load = async () => {
     setLoading(true);
@@ -55,7 +55,7 @@ export default function PnLReportScreen() {
       setRevenue(rev);
       setReportCount(analytics?.summary?.reportCount || 0);
       setTotalCups(analytics?.summary?.totalCups || 0);
-      setTotalMomoPackets(analytics?.summary?.totalMomoPackets || 0);
+      setTotalMomoPieces(analytics?.summary?.totalMomoPieces || 0);
 
       const expTotal = expList.reduce((s: number, e: any) => s + (e.amount || 0), 0);
       setExpenses(expTotal);
@@ -127,7 +127,7 @@ export default function PnLReportScreen() {
             <KpiCard label="Expenses" value={`₹${expenses.toLocaleString('en-IN')}`} icon="💸" color={COLORS.danger} />
             <KpiCard label="Reports" value={String(reportCount)} icon="📋" color={COLORS.info} />
             <KpiCard label="Cups" value={String(totalCups)} icon="☕" color={COLORS.primary} />
-            <KpiCard label="Momos" value={String(totalMomoPackets)} icon="🥟" color={COLORS.primary} />
+            <KpiCard label="Momos" value={String(totalMomoPieces)} icon="🥟" color={COLORS.primary} />
           </View>
 
           {/* P&L Statement */}

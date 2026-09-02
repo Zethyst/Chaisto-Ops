@@ -11,6 +11,8 @@ import { wastageService } from '../../services/wastageService';
 import { WastageLog, WastageItem } from '../../types';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
 import { haptics } from '../../utils/haptics';
+import { apiErrorMessage } from '../../utils/apiError';
+import { useLoggingStall } from './useLoggingStall';
 
 const ITEMS = [
   { key: 'milk', label: 'Milk', unit: 'litres', icon: '🥛' },
@@ -28,7 +30,7 @@ const currentMonth = () => new Date().toISOString().slice(0, 7);
 
 export default function WastageLogScreen() {
   const { user } = useSelector((s: RootState) => s.auth);
-  const isAdmin = user?.role === 'admin' || user?.role === 'moderator';
+  const { isAdmin, stalls, selectedStallId, setSelectedStallId, missingStallMessage } = useLoggingStall();
 
   const [logs, setLogs] = useState<WastageLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,13 +65,17 @@ export default function WastageLogScreen() {
       setFormError('Enter a valid quantity.');
       return;
     }
+    if (missingStallMessage) {
+      setFormError(missingStallMessage);
+      return;
+    }
     setFormError(null);
     haptics.medium();
     setSaving(true);
     const itemMeta = ITEMS.find((i) => i.key === selectedItem)!;
     try {
       await wastageService.logWastage({
-        stallId: user!.stallId!,
+        stallId: selectedStallId!,
         date: today(),
         items: [{ item: selectedItem, quantity: qty, unit: itemMeta.unit, reason }],
         notes: notes.trim() || undefined,
@@ -81,7 +87,7 @@ export default function WastageLogScreen() {
       load();
     } catch (err: any) {
       haptics.error();
-      setFormError(err.response?.data?.error || 'Could not save. Please try again.');
+      setFormError(apiErrorMessage(err, 'Could not save. Please try again.'));
     } finally {
       setSaving(false);
     }
@@ -166,6 +172,26 @@ export default function WastageLogScreen() {
               <View style={styles.errorBanner}>
                 <Text style={styles.errorBannerText}>⚠️ {formError}</Text>
               </View>
+            )}
+
+            {/* Admins have no stall of their own, so they choose one */}
+            {isAdmin && stalls.length > 0 && (
+              <>
+                <Text style={styles.fieldLabel}>Stall</Text>
+                <View style={styles.stallRow}>
+                  {stalls.map((st) => (
+                    <TouchableOpacity
+                      key={st.id}
+                      style={[styles.stallChip, selectedStallId === st.id && styles.stallChipActive]}
+                      onPress={() => { haptics.selection(); setSelectedStallId(st.id); }}
+                    >
+                      <Text style={[styles.stallChipText, selectedStallId === st.id && styles.stallChipTextActive]}>
+                        {st.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
             )}
 
             <Text style={styles.fieldLabel}>Item</Text>
@@ -293,6 +319,16 @@ const styles = StyleSheet.create({
     borderTopRightRadius: BORDER_RADIUS.xl, padding: SPACING.xl, paddingBottom: 40,
   },
   modalTitle: { fontSize: FONT_SIZE.xl, fontWeight: '800', color: COLORS.black, marginBottom: SPACING.xl },
+  stallRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginBottom: SPACING.sm },
+  stallChip: {
+    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.full,
+    paddingHorizontal: SPACING.md, paddingVertical: 6,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  stallChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  stallChipText: { fontSize: FONT_SIZE.sm, fontWeight: '700', color: COLORS.dark },
+  stallChipTextActive: { color: '#fff' },
+
   errorBanner: {
     backgroundColor: COLORS.dangerBg, borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md, marginBottom: SPACING.lg,

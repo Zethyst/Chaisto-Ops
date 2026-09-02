@@ -9,7 +9,7 @@ const auditLogSchema = new mongoose.Schema({
     enum: [
       'user_created', 'user_disabled', 'user_enabled', 'user_password_reset',
       'device_reset', 'report_reviewed', 'report_flagged', 'report_cleared',
-      'report_photo_added', 'report_backfilled',
+      'report_photo_added', 'report_backfilled', 'report_edited',
       'config_changed', 'attendance_marked', 'expense_deleted',
       'stall_created', 'stall_updated', 'inventory_updated',
     ],
