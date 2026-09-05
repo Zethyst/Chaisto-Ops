@@ -11,8 +11,11 @@ import { wastageService } from '../../services/wastageService';
 import { WastageLog, WastageItem } from '../../types';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
 import { haptics } from '../../utils/haptics';
+import { todayISO } from '../../utils/date';
 import { apiErrorMessage } from '../../utils/apiError';
 import { useLoggingStall } from './useLoggingStall';
+import MonthNavigator, { currentMonth, monthLabel } from '../../components/MonthNavigator';
+import DateStrip, { defaultDayFor } from '../../components/DateStrip';
 
 const ITEMS = [
   { key: 'milk', label: 'Milk', unit: 'litres', icon: '🥛' },
@@ -25,13 +28,12 @@ const ITEMS = [
 
 const REASONS = ['expired', 'spilled', 'unsold', 'damaged', 'other'] as const;
 
-const today = () => new Date().toISOString().split('T')[0];
-const currentMonth = () => new Date().toISOString().slice(0, 7);
 
 export default function WastageLogScreen() {
   const { user } = useSelector((s: RootState) => s.auth);
   const { isAdmin, stalls, selectedStallId, setSelectedStallId, missingStallMessage } = useLoggingStall();
 
+  const [month, setMonth] = useState(currentMonth());
   const [logs, setLogs] = useState<WastageLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -40,6 +42,9 @@ export default function WastageLogScreen() {
   const [formError, setFormError] = useState<string | null>(null);
 
   // Form state
+  // The day the wastage is logged against — defaults into whichever month is
+  // being browsed, so a past month can be filled in
+  const [entryDate, setEntryDate] = useState(todayISO());
   const [selectedItem, setSelectedItem] = useState<typeof ITEMS[number]['key']>('milk');
   const [quantity, setQuantity] = useState('');
   const [reason, setReason] = useState<typeof REASONS[number]>('expired');
@@ -47,7 +52,7 @@ export default function WastageLogScreen() {
 
   const load = async () => {
     try {
-      const data = await wastageService.getWastageLogs({ stallId: isAdmin ? undefined : user?.stallId, month: currentMonth() });
+      const data = await wastageService.getWastageLogs({ stallId: isAdmin ? undefined : user?.stallId, month });
       setLogs(data);
     } catch {
       showAlert('Error', 'Could not load wastage logs');
@@ -57,7 +62,7 @@ export default function WastageLogScreen() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [month]);
 
   const handleSave = async () => {
     const qty = parseFloat(quantity);
@@ -76,7 +81,7 @@ export default function WastageLogScreen() {
     try {
       await wastageService.logWastage({
         stallId: selectedStallId!,
-        date: today(),
+        date: entryDate,
         items: [{ item: selectedItem, quantity: qty, unit: itemMeta.unit, reason }],
         notes: notes.trim() || undefined,
       });
@@ -108,25 +113,35 @@ export default function WastageLogScreen() {
         <View style={styles.header}>
           <View>
             <Text style={styles.headerTitle}>Wastage Log</Text>
-            <Text style={styles.headerSub}>{new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })}</Text>
+            <Text style={styles.headerSub}>{monthLabel(month)}</Text>
           </View>
-          <TouchableOpacity style={styles.addBtn} onPress={() => { haptics.light(); setFormError(null); setShowForm(true); }}>
+          <TouchableOpacity
+            style={styles.addBtn}
+            onPress={() => {
+              haptics.light();
+              setFormError(null);
+              setEntryDate(defaultDayFor(month));
+              setShowForm(true);
+            }}
+          >
             <Text style={styles.addBtnText}>+ Log</Text>
           </TouchableOpacity>
         </View>
 
+        <MonthNavigator value={month} onChange={setMonth} />
+
         {totalLoss > 0 && (
           <View style={styles.lossCard}>
-            <Text style={styles.lossLabel}>Estimated Loss This Month</Text>
+            <Text style={styles.lossLabel}>Estimated Loss · {monthLabel(month)}</Text>
             <Text style={styles.lossAmount}>₹{totalLoss.toLocaleString('en-IN')}</Text>
           </View>
         )}
 
-        <Text style={styles.sectionTitle}>This Month's Entries ({logs.length})</Text>
+        <Text style={styles.sectionTitle}>Entries ({logs.length})</Text>
         {logs.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={{ fontSize: 40 }}>♻️</Text>
-            <Text style={styles.emptyText}>No wastage logged this month</Text>
+            <Text style={styles.emptyText}>No wastage logged in {monthLabel(month)}</Text>
           </View>
         ) : (
           logs.map((log) => {
@@ -193,6 +208,10 @@ export default function WastageLogScreen() {
                 </View>
               </>
             )}
+
+            <Text style={styles.fieldLabel}>Date</Text>
+            <DateStrip value={entryDate} onChange={setEntryDate} month={month} />
+            <View style={{ height: SPACING.md }} />
 
             <Text style={styles.fieldLabel}>Item</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: SPACING.lg }}>

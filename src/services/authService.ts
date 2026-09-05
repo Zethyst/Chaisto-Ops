@@ -1,20 +1,8 @@
-import axios from 'axios';
-import { Platform } from 'react-native';
-import * as Keychain from 'react-native-keychain';
-import { API_CONFIG } from '../constants';
 import { User } from '../types';
+import { createApiClient } from './apiClient';
+import { storeToken, getStoredToken, clearToken } from './authToken';
 
-const api = axios.create({
-  baseURL: API_CONFIG.BASE_URL,
-  timeout: __DEV__ ? API_CONFIG.TIMEOUT : 60000, // 60s in prod to survive Render cold starts
-});
-
-// Attach token to every request
-api.interceptors.request.use(async (config) => {
-  const token = await authService.getStoredToken();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+const api = createApiClient();
 
 export const authService = {
   async login(phone: string, password: string, deviceId: string): Promise<{ user: User; token: string }> {
@@ -35,31 +23,17 @@ export const authService = {
     return response.data;
   },
 
-  async storeCredentials(token: string): Promise<void> {
-    // JWT must be readable silently for axios interceptors. Biometric `accessControl`
-    // requires NSFaceIDUsageDescription and prompts on read — omit it; rely on OS keychain.
-    await Keychain.setGenericPassword('chaisto_token', token, {
-      service: 'com.chaisto.ops',
-      ...(Platform.OS === 'ios'
-        ? { accessible: Keychain.ACCESSIBLE.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY }
-        : {}),
-    });
-  },
+  // The keychain itself lives in authToken, so the API client can read the JWT
+  // without importing this module
+  storeCredentials: storeToken,
 
-  async getStoredToken(): Promise<string | null> {
-    try {
-      const creds = await Keychain.getGenericPassword({ service: 'com.chaisto.ops' });
-      return creds ? creds.password : null;
-    } catch {
-      return null;
-    }
-  },
+  getStoredToken,
 
   async logout(): Promise<void> {
     try {
       await api.post('/auth/logout');
     } catch {}
-    await Keychain.resetGenericPassword({ service: 'com.chaisto.ops' });
+    await clearToken();
   },
 
   async changePassword(userId: string, oldPassword: string, newPassword: string): Promise<void> {

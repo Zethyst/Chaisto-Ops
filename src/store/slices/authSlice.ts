@@ -69,14 +69,35 @@ export const logoutUser = createAsyncThunk('auth/logout', async (_, { getState }
   return null;
 });
 
+/**
+ * Reasons a session ends. A token the server refuses is the only one that signs
+ * anybody out — the stored session survives everything else.
+ */
+export type SessionEnd = 'no-session' | 'rejected' | 'unreachable';
+
+/**
+ * Re-checks the stored session at startup, picking up any change to the
+ * account's role or stall.
+ *
+ * Failing to reach the server is not a reason to sign someone out. This used to
+ * clear the session on any error at all, so a stall with no signal — or a
+ * sleeping server on the first request of the day — put staff back on the login
+ * screen with a shift's worth of work to re-enter.
+ */
 export const refreshSession = createAsyncThunk('auth/refresh', async (_, { rejectWithValue }) => {
+  const token = await authService.getStoredToken();
+  if (!token) return rejectWithValue('no-session' as SessionEnd);
+
   try {
-    const token = await authService.getStoredToken();
-    if (!token) throw new Error('No session found');
     const user = await authService.validateToken(token);
     return { user, token };
-  } catch {
-    return rejectWithValue('Session expired');
+  } catch (error: unknown) {
+    const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+    // 401 the token is no good, 403 the account is disabled or the device was
+    // reset — the server has spoken, so the session is over
+    if (status === 401 || status === 403) return rejectWithValue('rejected' as SessionEnd);
+    // Anything else is the network, not the account
+    return rejectWithValue('unreachable' as SessionEnd);
   }
 });
 
@@ -117,7 +138,10 @@ const authSlice = createSlice({
         state.isAuthenticated = true;
         state.deviceBound = !!action.payload.user.deviceId;
       })
-      .addCase(refreshSession.rejected, (state) => {
+      .addCase(refreshSession.rejected, (state, action) => {
+        // Keep the restored session when the server simply could not be reached;
+        // the next request will try again
+        if (action.payload === 'unreachable') return state;
         return initialState;
       });
   },

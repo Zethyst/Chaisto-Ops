@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-   ActivityIndicator, TextInput,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import { showAlert } from '../../components/AppAlert';
 import { stallConfigService } from '../../services/stallConfigService';
 import { StallConfig } from '../../types';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
+import BufferedTextInput from '../../components/BufferedTextInput';
 import { haptics } from '../../utils/haptics';
 
 interface Props {
@@ -182,7 +182,9 @@ export default function AlertsConfigScreen({ route, navigation }: Props) {
               >
                 <Text style={styles.stepBtnText}>−</Text>
               </TouchableOpacity>
-              <TextInput
+              {/* Buffered so a half-typed or out-of-range entry is not written
+                  back over the caret; only a valid figure is committed */}
+              <BufferedTextInput
                 style={styles.stepInput}
                 value={String(current)}
                 onChangeText={(v) => {

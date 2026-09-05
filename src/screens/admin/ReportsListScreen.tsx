@@ -9,8 +9,9 @@ import { reportService } from '../../services/reportService';
 import { DailyReport } from '../../types';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
 import { haptics } from '../../utils/haptics';
+import { toISODate } from '../../utils/date';
 
-const STATUS_FILTERS = ['All', 'Submitted', 'Reviewed', 'Flagged'] as const;
+const STATUS_FILTERS = ['All', 'Draft', 'Submitted', 'Reviewed', 'Flagged'] as const;
 type StatusFilter = typeof STATUS_FILTERS[number];
 
 function dateLabel(d: Date): string {
@@ -23,21 +24,36 @@ function dateLabel(d: Date): string {
 }
 
 function toDateStr(d: Date): string {
-  return d.toISOString().split('T')[0];
+  return toISODate(d);
 }
 
 export default function ReportsListScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [reports, setReports] = useState<DailyReport[]>([]);
+  // Reports a staff member started and never submitted — listed separately so a
+  // half-entered day reads as unfinished rather than missing
+  const [drafts, setDrafts] = useState<DailyReport[]>([]);
+  const [draftsFailed, setDraftsFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
 
   const load = useCallback(async (date: Date) => {
+    const day = toDateStr(date);
     try {
-      const data = await reportService.getReportsByDate(toDateStr(date));
-      setReports(data);
+      const [submitted, unfinished] = await Promise.all([
+        reportService.getReportsByDate(day),
+        // Drafts are a secondary view of the day — a failure here must not hide
+        // the reports that did come in, but it must not pass unnoticed either:
+        // silently swallowing it makes a server without the drafts endpoint
+        // look exactly like a day with nothing unfinished
+        reportService.getDrafts({ date: day })
+          .then((rows) => { setDraftsFailed(false); return rows; })
+          .catch(() => { setDraftsFailed(true); return [] as DailyReport[]; }),
+      ]);
+      setReports(submitted);
+      setDrafts(unfinished);
     } catch {
       showAlert('Error', 'Could not load reports.');
     } finally {
@@ -51,6 +67,9 @@ export default function ReportsListScreen({ navigation }: any) {
     load(selectedDate);
   }, [selectedDate]);
 
+  // Coming back from editing or filing a draft should not show stale figures
+  useEffect(() => navigation.addListener('focus', () => load(selectedDate)), [navigation, selectedDate, load]);
+
   const changeDate = (delta: number) => {
     haptics.selection();
     const d = new Date(selectedDate);
@@ -61,7 +80,11 @@ export default function ReportsListScreen({ navigation }: any) {
 
   const filtered = statusFilter === 'All'
     ? reports
-    : reports.filter((r) => r.status === statusFilter.toLowerCase());
+    : statusFilter === 'Draft'
+      ? []
+      : reports.filter((r) => r.status === statusFilter.toLowerCase());
+  const visibleDrafts = statusFilter === 'All' || statusFilter === 'Draft' ? drafts : [];
+  const nothingToShow = filtered.length === 0 && visibleDrafts.length === 0;
 
   const isToday = toDateStr(selectedDate) === toDateStr(new Date());
 
@@ -117,7 +140,7 @@ export default function ReportsListScreen({ navigation }: any) {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(selectedDate); }} tintColor={COLORS.primaryLight} />}
           showsVerticalScrollIndicator={false}
         >
-          {/* Summary strip */}
+          {/* Summary strip — submitted reports only; a draft is not a record yet */}
           {reports.length > 0 && (
             <View style={styles.summaryStrip}>
               <SummaryItem
@@ -128,7 +151,7 @@ export default function ReportsListScreen({ navigation }: any) {
               <View style={styles.summaryDivider} />
               <SummaryItem
                 label="TOTAL CUPS"
-                value={String(reports.reduce((s, r) => s + (r.computed?.totalCups || (r.sales?.regularCups || 0) + (r.sales?.specialCups || 0) + (r.sales?.kulhadCups || 0)), 0))}
+                value={String(reports.reduce((s, r) => s + (r.sales?.regularCups || 0) + (r.sales?.specialCups || 0) + (r.sales?.kulhadCups || 0), 0))}
                 color={COLORS.primary}
               />
               <View style={styles.summaryDivider} />
@@ -152,19 +175,49 @@ export default function ReportsListScreen({ navigation }: any) {
             </View>
           )}
 
+          {draftsFailed && (
+            <View style={styles.draftsError}>
+              <Text style={styles.draftsErrorText}>
+                Unfinished reports could not be loaded, so any half-entered day is missing from this list.
+              </Text>
+            </View>
+          )}
+
+          {/* Unfinished reports — started by staff, never submitted */}
+          {visibleDrafts.length > 0 && (
+            <>
+              <Text style={styles.groupTitle}>
+                UNFINISHED · {visibleDrafts.length} NOT SUBMITTED
+              </Text>
+              {visibleDrafts.map((draft) => (
+                <ReportCard
+                  key={draft._id || draft.id}
+                  report={draft}
+                  onPress={() => {
+                    haptics.light();
+                    navigation.navigate('EditDraft', { draftId: draft._id || draft.id });
+                  }}
+                />
+              ))}
+            </>
+          )}
+
           {/* Report cards */}
-          {filtered.length === 0 ? (
+          {visibleDrafts.length > 0 && filtered.length > 0 && (
+            <Text style={styles.groupTitle}>SUBMITTED · {filtered.length}</Text>
+          )}
+          {nothingToShow ? (
             <View style={styles.empty}>
               <Text style={styles.emptyIcon}>📋</Text>
               <Text style={styles.emptyTitle}>
-                {reports.length === 0 ? 'No reports submitted' : 'No matching reports'}
+                {reports.length === 0 && drafts.length === 0 ? 'No reports submitted' : 'No matching reports'}
               </Text>
               <Text style={styles.emptySub}>
-                {reports.length === 0
+                {reports.length === 0 && drafts.length === 0
                   ? `No staff submitted a report on ${selectedDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })}`
                   : `Try a different filter`}
               </Text>
-              {reports.length === 0 && (
+              {reports.length === 0 && drafts.length === 0 && (
                 <TouchableOpacity
                   style={styles.emptyAction}
                   onPress={() => { haptics.light(); navigation.navigate('BackfillReport'); }}
@@ -201,14 +254,16 @@ function SummaryItem({ label, value, color }: { label: string; value: string; co
 }
 
 function ReportCard({ report, onPress }: { report: DailyReport; onPress: () => void }) {
-  const cups = (report.computed?.totalCups)
-    || (report.sales?.regularCups || 0) + (report.sales?.specialCups || 0) + (report.sales?.kulhadCups || 0);
+  const cups = (report.sales?.regularCups || 0) + (report.sales?.specialCups || 0) + (report.sales?.kulhadCups || 0);
   const momoPackets = (report.sales?.vegMomoPackets || 0) + (report.sales?.paneerMomoPackets || 0);
   const revenue = (report.payments?.upi || 0) + (report.payments?.cash || 0);
   const upiPct = revenue > 0 ? Math.round((report.payments?.upi / revenue) * 100) : 0;
   const flagCount = report.flags?.length || 0;
-  const submittedTime = report.submittedAt
-    ? new Date(report.submittedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+  const isDraft = !!report.isDraft;
+  // A draft has no submission time — the last autosave is what there is to show
+  const stamp = isDraft ? report.updatedAt : report.submittedAt;
+  const timeText = stamp
+    ? `${isDraft ? '💾 saved' : '⏱'} ${new Date(stamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}`
     : null;
 
   const statusConfig: Record<string, { color: string; bg: string; label: string }> = {
@@ -246,8 +301,8 @@ function ReportCard({ report, onPress }: { report: DailyReport; onPress: () => v
       {/* Footer */}
       <View style={styles.cardFooter}>
         <View style={styles.footerLeft}>
-          {submittedTime && (
-            <Text style={styles.timeText}>⏱ {submittedTime}</Text>
+          {timeText && (
+            <Text style={styles.timeText}>{timeText}</Text>
           )}
           {flagCount > 0 && (
             <View style={styles.flagBadge}>
@@ -255,7 +310,7 @@ function ReportCard({ report, onPress }: { report: DailyReport; onPress: () => v
             </View>
           )}
         </View>
-        <Text style={styles.viewArrow}>View →</Text>
+        <Text style={styles.viewArrow}>{isDraft ? 'Edit →' : 'View →'}</Text>
       </View>
 
       {/* Flag preview */}
@@ -338,6 +393,19 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.md, paddingHorizontal: SPACING.xl, paddingVertical: SPACING.md,
   },
   emptyActionText: { color: '#fff', fontWeight: '800', fontSize: FONT_SIZE.md },
+
+  draftsError: {
+    backgroundColor: COLORS.warningBg, borderRadius: BORDER_RADIUS.md,
+    borderLeftWidth: 3, borderLeftColor: COLORS.warning,
+    paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  draftsErrorText: { fontSize: FONT_SIZE.sm, color: '#7A5C00', fontWeight: '600', lineHeight: 18 },
+
+  groupTitle: {
+    fontSize: 10, fontWeight: '800', color: COLORS.muted, letterSpacing: 1.2,
+    marginBottom: SPACING.sm, marginTop: SPACING.xs,
+  },
 
   empty: { alignItems: 'center', paddingVertical: 60 },
   emptyIcon: { fontSize: 52, marginBottom: SPACING.lg },

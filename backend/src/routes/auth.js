@@ -16,8 +16,18 @@ const loginLimiter = rateLimit({
   standardHeaders: true,
 });
 
-const signToken = (userId) =>
-  jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '8h' });
+// The session does not expire. Staff work shifts in a stall with patchy signal
+// and no reason to remember a password twice a day, and an 8-hour token meant
+// being signed out mid-shift — including out of the payment monitoring, which
+// only records while someone is logged in.
+//
+// Access is still revocable at any moment, and immediately: every request loads
+// the user afresh and refuses a disabled account or a device that no longer
+// matches (see middleware/auth.js). The token identifies the account; it does
+// not, on its own, keep it alive. `JWT_EXPIRES_IN` is deliberately not read
+// here — a stale value in the deploy environment would quietly reintroduce the
+// logouts this removes.
+const signToken = (userId) => jwt.sign({ userId }, process.env.JWT_SECRET);
 
 // ─── POST /auth/login ─────────────────────────────────────────────────────────
 router.post('/login', loginLimiter, [

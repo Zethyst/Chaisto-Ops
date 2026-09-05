@@ -6,6 +6,9 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <!-- Lets the app ask to be left running: MIUI and similar builds kill the
+         payment listener within hours otherwise, and the day goes unrecorded -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
       android:name=".MainApplication"
@@ -29,6 +32,22 @@
         android:name="com.google.firebase.messaging.default_notification_channel_id"
         android:value="chaisto-ops-default"
         tools:replace="android:value" />
+      <!--
+        Payment capture: reads UPI "payment received" notifications on the staff
+        phone so collections can be reconciled against the day's report. The
+        service filters to payment apps before anything is stored, and Android
+        requires the staff member to switch notification access on by hand.
+      -->
+      <service
+        android:name="com.chaisto.payments.PaymentNotificationListener"
+        android:label="@string/payment_capture_label"
+        android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+        android:exported="false">
+        <intent-filter>
+          <action android:name="android.service.notification.NotificationListenerService" />
+        </intent-filter>
+      </service>
+
       <activity
         android:name=".MainActivity"
         android:label="@string/app_name"

@@ -11,22 +11,8 @@ import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../consta
 import { haptics } from '../../utils/haptics';
 import { apiErrorMessage } from '../../utils/apiError';
 import ReportFiguresForm, {
-  emptyFigures, ReportFigures, FigureSection,
+  emptyFigures, figuresFrom, changedFigureFields, ReportFigures, FigureSection,
 } from '../../components/ReportFiguresForm';
-
-const SECTIONS: FigureSection[] = ['openingStock', 'purchases', 'sales', 'payments', 'closingStock'];
-
-/** Pulls the editable numbers out of a fetched report, in stored units. */
-function figuresFrom(report: DailyReport): ReportFigures {
-  const figures = emptyFigures();
-  SECTIONS.forEach((section) => {
-    const stored = (report as any)[section] || {};
-    Object.entries(stored).forEach(([key, value]) => {
-      if (typeof value === 'number') figures[section][key] = value;
-    });
-  });
-  return figures;
-}
 
 export default function EditReportScreen({ route, navigation }: any) {
   const { reportId } = route.params;
@@ -54,12 +40,7 @@ export default function EditReportScreen({ route, navigation }: any) {
   const set = (section: FigureSection, key: string, value: number) =>
     setForm(prev => ({ ...prev, [section]: { ...prev[section], [key]: value } }));
 
-  // Compared in stored units, so a display-only rounding difference is not a change
-  const changedFields = SECTIONS.flatMap((section) =>
-    Object.keys({ ...original[section], ...form[section] })
-      .filter((key) => (original[section][key] ?? 0) !== (form[section][key] ?? 0))
-      .map((key) => `${section}.${key}`)
-  );
+  const changedFields = changedFigureFields(original, form);
 
   const handleSave = () => {
     if (changedFields.length === 0) {

@@ -1,11 +1,17 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store';
+import { DailyReport } from '../types';
+import BufferedTextInput from './BufferedTextInput';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../constants';
 
 export type FigureSection = 'openingStock' | 'purchases' | 'sales' | 'payments' | 'closingStock';
 export type ReportFigures = Record<FigureSection, Record<string, number>>;
+
+export const FIGURE_SECTIONS: FigureSection[] = [
+  'openingStock', 'purchases', 'sales', 'payments', 'closingStock',
+];
 
 export const emptyFigures = (): ReportFigures => ({
   openingStock: {},
@@ -14,6 +20,36 @@ export const emptyFigures = (): ReportFigures => ({
   payments: {},
   closingStock: {},
 });
+
+/**
+ * Pulls the editable numbers out of a submitted report or an unfinished draft,
+ * in stored units. Anything non-numeric in the section (a stray string from an
+ * older client) is left out rather than becoming NaN.
+ */
+export function figuresFrom(report: Partial<DailyReport> | null | undefined): ReportFigures {
+  const figures = emptyFigures();
+  if (!report) return figures;
+  FIGURE_SECTIONS.forEach((section) => {
+    const stored = (report as any)[section] || {};
+    Object.entries(stored).forEach(([key, value]) => {
+      if (typeof value === 'number' && Number.isFinite(value)) figures[section][key] = value;
+    });
+  });
+  return figures;
+}
+
+/**
+ * The figures that differ, named `section.field` — the same diff the edit
+ * screens show and the server records. Compared in stored units, so a
+ * display-only rounding difference is not a change.
+ */
+export function changedFigureFields(original: ReportFigures, form: ReportFigures): string[] {
+  return FIGURE_SECTIONS.flatMap((section) =>
+    Object.keys({ ...original[section], ...form[section] })
+      .filter((key) => (original[section][key] ?? 0) !== (form[section][key] ?? 0))
+      .map((key) => `${section}.${key}`)
+  );
+}
 
 /**
  * The numeric body of a daily report, shared by the admin backfill and edit
@@ -99,20 +135,18 @@ export default function ReportFiguresForm({ values, onChange }: {
 function NumField({ label, value, onChange, unit }: {
   label: string; value: number; onChange: (v: number) => void; unit: string;
 }) {
-  // Seeded once, then owned by the input — re-deriving it from `value` on every
-  // keystroke would fight the user over partial entries like "1."
-  const [raw, setRaw] = useState(value === 0 ? '' : String(round(value)));
-
+  // The text is the input's own while it has focus, so a partial entry like
+  // "1." is never fought over; a value changed from outside — a report
+  // finishing loading, figures reset after a save — lands when focus leaves.
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <View style={styles.inputRow}>
-        <TextInput
+        <BufferedTextInput
           style={styles.input}
           keyboardType="decimal-pad"
-          value={raw}
+          value={value === 0 ? '' : String(round(value))}
           onChangeText={(t) => {
-            setRaw(t);
             const n = parseFloat(t);
             onChange(isNaN(n) ? 0 : n);
           }}

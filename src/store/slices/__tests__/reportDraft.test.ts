@@ -16,9 +16,12 @@ import reducer, {
   saveDraftRemote, resumeOrStartReport, attachReportPhoto, fetchReports,
 } from '../reportSlice';
 import { reportService } from '../../../services/reportService';
+import { todayISO } from '../../../utils/date';
 
 const svc = reportService as jest.Mocked<any>;
-const today = () => new Date().toISOString().split('T')[0];
+// Must match production's local-calendar date, not the UTC one — in IST they
+// differ for the first hours of the day, which is the bug todayISO fixes
+const today = () => todayISO();
 
 const withDraft = () => reducer(
   undefined,

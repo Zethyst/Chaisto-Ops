@@ -11,8 +11,11 @@ import { expenseService } from '../../services/expenseService';
 import { Expense } from '../../types';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
 import { haptics } from '../../utils/haptics';
+import { todayISO } from '../../utils/date';
 import { apiErrorMessage } from '../../utils/apiError';
 import { useLoggingStall } from './useLoggingStall';
+import MonthNavigator, { currentMonth, monthLabel } from '../../components/MonthNavigator';
+import DateStrip, { defaultDayFor } from '../../components/DateStrip';
 
 const CATEGORIES: { key: Expense['category']; label: string; icon: string }[] = [
   { key: 'gas', label: 'Gas / Fuel', icon: '🔥' },
@@ -22,13 +25,12 @@ const CATEGORIES: { key: Expense['category']; label: string; icon: string }[] = 
   { key: 'other', label: 'Other', icon: '📦' },
 ];
 
-const today = () => new Date().toISOString().split('T')[0];
-const currentMonth = () => new Date().toISOString().slice(0, 7);
 
 export default function ExpenseTrackerScreen({ navigation }: any) {
   const { user } = useSelector((s: RootState) => s.auth);
   const { isAdmin, stalls, selectedStallId, setSelectedStallId, missingStallMessage } = useLoggingStall();
 
+  const [month, setMonth] = useState(currentMonth());
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -36,6 +38,9 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // The day the expense is logged against — defaults into whichever month is
+  // being browsed, so a past month can be filled in
+  const [entryDate, setEntryDate] = useState(todayISO());
   const [category, setCategory] = useState<Expense['category']>('gas');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
@@ -44,7 +49,7 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
     try {
       const data = await expenseService.getExpenses({
         stallId: isAdmin ? undefined : user?.stallId,
-        month: currentMonth(),
+        month,
       });
       setExpenses(data);
     } catch {
@@ -55,7 +60,7 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [month]);
 
   const handleSave = async () => {
     const amt = parseFloat(amount);
@@ -76,7 +81,7 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
         category,
         amount: amt,
         description: description.trim() || undefined,
-        date: today(),
+        date: entryDate,
       });
       haptics.success();
       setShowForm(false);
@@ -127,16 +132,26 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
         <View style={styles.header}>
           <View>
             <Text style={styles.headerTitle}>Expense Tracker</Text>
-            <Text style={styles.headerSub}>{new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })}</Text>
+            <Text style={styles.headerSub}>{monthLabel(month)}</Text>
           </View>
-          <TouchableOpacity style={styles.addBtn} onPress={() => { haptics.light(); setFormError(null); setShowForm(true); }}>
+          <TouchableOpacity
+            style={styles.addBtn}
+            onPress={() => {
+              haptics.light();
+              setFormError(null);
+              setEntryDate(defaultDayFor(month));
+              setShowForm(true);
+            }}
+          >
             <Text style={styles.addBtnText}>+ Log</Text>
           </TouchableOpacity>
         </View>
 
+        <MonthNavigator value={month} onChange={setMonth} />
+
         {/* Total card */}
         <View style={styles.totalCard}>
-          <Text style={styles.totalLabel}>Total This Month</Text>
+          <Text style={styles.totalLabel}>Total for {monthLabel(month)}</Text>
           <Text style={styles.totalAmount}>₹{total.toLocaleString('en-IN')}</Text>
           <View style={styles.catRow}>
             {CATEGORIES.map((c) => byCategory[c.key] ? (
@@ -149,11 +164,11 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
         </View>
 
         {/* List */}
-        <Text style={styles.sectionTitle}>This Month's Entries</Text>
+        <Text style={styles.sectionTitle}>Entries</Text>
         {expenses.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={{ fontSize: 40 }}>💸</Text>
-            <Text style={styles.emptyText}>No expenses logged this month</Text>
+            <Text style={styles.emptyText}>No expenses logged in {monthLabel(month)}</Text>
           </View>
         ) : (
           expenses.map((e) => {
@@ -216,6 +231,10 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
                 </View>
               </>
             )}
+
+            <Text style={styles.fieldLabel}>Date</Text>
+            <DateStrip value={entryDate} onChange={setEntryDate} month={month} />
+            <View style={{ height: SPACING.md }} />
 
             <Text style={styles.fieldLabel}>Category</Text>
             <View style={styles.catGrid}>

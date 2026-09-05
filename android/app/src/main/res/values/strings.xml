@@ -1,3 +1,6 @@
 <resources>
     <string name="app_name">Chaisto</string>
+    <!-- Shown in Android's notification-access list, so the staff member sees
+         what they are switching on -->
+    <string name="payment_capture_label">Chaisto UPI payment records</string>
 </resources>

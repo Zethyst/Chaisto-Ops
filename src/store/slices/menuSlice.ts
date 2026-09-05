@@ -2,6 +2,7 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { REHYDRATE } from 'redux-persist';
 import { MenuItem, MenuPortion } from '../../types';
 import { stallConfigService } from '../../services/stallConfigService';
+import { todayISO } from '../../utils/date';
 
 // Half / full plate serving sizes offered on plate-served items. `stockFactor`
 // converts servings back into the packet unit used by stock reconciliation.
@@ -141,7 +142,7 @@ export const stockUnitsForItem = (item: MenuItem, counters: Record<string, numbe
 export const revenueForItem = (item: MenuItem, counters: Record<string, number>) =>
   getSellableUnits(item).reduce((sum, u) => sum + (counters[u.unitKey] || 0) * u.price, 0);
 
-const todayStr = () => new Date().toISOString().split('T')[0];
+const todayStr = () => todayISO();
 
 const freshTally = (): TallyData => ({
   counters: {},

@@ -19,6 +19,19 @@ const userSchema = new mongoose.Schema({
   lastLoginIp: String,
   profilePhoto: String,
   monthlySalary: { type: Number, default: 0 },
+
+  // State of UPI payment monitoring on this staff member's phone. Switching
+  // notification access off is the obvious way to defeat it, so when the device
+  // last reported in — and whether it was on — is kept rather than inferred
+  // from silence.
+  paymentCapture: {
+    enabled: { type: Boolean, default: false },
+    // Granted is not the same as running: MIUI and similar builds keep the
+    // permission while killing the service, so the phone reports both
+    listenerConnected: { type: Boolean, default: false },
+    lastSyncAt: Date,
+    lastCaptureAt: Date,
+  },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
 

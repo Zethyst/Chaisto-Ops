@@ -10,6 +10,7 @@ const auditLogSchema = new mongoose.Schema({
       'user_created', 'user_disabled', 'user_enabled', 'user_password_reset',
       'device_reset', 'report_reviewed', 'report_flagged', 'report_cleared',
       'report_photo_added', 'report_backfilled', 'report_edited',
+      'report_draft_edited', 'report_draft_submitted',
       'config_changed', 'attendance_marked', 'expense_deleted',
       'stall_created', 'stall_updated', 'inventory_updated',
     ],

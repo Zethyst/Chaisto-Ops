@@ -1,15 +1,8 @@
-import axios from 'axios';
-import { API_CONFIG } from '../constants';
-import { authService } from './authService';
+import { createApiClient } from './apiClient';
 import { MenuItem } from '../types';
 
-const api = axios.create({ baseURL: API_CONFIG.BASE_URL, timeout: 25000 });
-
-api.interceptors.request.use(async (config) => {
-  const token = await authService.getStoredToken();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+// AI answers are slow by nature, so the floor is higher than the app default
+const api = createApiClient({ timeout: 25000 });
 
 export const aiService = {
   async getDailyTip(stallId?: string): Promise<string> {

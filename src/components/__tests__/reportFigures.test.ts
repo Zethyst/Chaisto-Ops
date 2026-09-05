@@ -1,15 +1,6 @@
-import { emptyFigures, ReportFigures, FigureSection } from '../ReportFiguresForm';
-
-const SECTIONS: FigureSection[] = ['openingStock', 'purchases', 'sales', 'payments', 'closingStock'];
-
-/** Mirrors the diff EditReportScreen sends and the server records. */
-function changedFields(original: ReportFigures, form: ReportFigures) {
-  return SECTIONS.flatMap((section) =>
-    Object.keys({ ...original[section], ...form[section] })
-      .filter((key) => (original[section][key] ?? 0) !== (form[section][key] ?? 0))
-      .map((key) => `${section}.${key}`)
-  );
-}
+import {
+  emptyFigures, figuresFrom, changedFigureFields as changedFields, ReportFigures,
+} from '../ReportFiguresForm';
 
 const seeded = (): ReportFigures => ({
   ...emptyFigures(),

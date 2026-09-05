@@ -1,17 +1,12 @@
-import axios from 'axios';
+import axios from 'axios'; // Cloudinary uploads go straight to their API, not ours
+import { createApiClient } from './apiClient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_CONFIG, CLOUDINARY_CONFIG } from '../constants';
+import { CLOUDINARY_CONFIG } from '../constants';
 import { DailyReport } from '../types';
 
-import { authService } from './authService';
+import { todayISO } from '../utils/date';
 
-const api = axios.create({ baseURL: API_CONFIG.BASE_URL, timeout: API_CONFIG.TIMEOUT });
-
-api.interceptors.request.use(async (config) => {
-  const token = await authService.getStoredToken();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+const api = createApiClient();
 
 const OFFLINE_QUEUE_KEY = 'chaisto_offline_queue';
 const REPORT_CACHE_KEY = 'chaisto_report_cache';
@@ -80,7 +75,7 @@ export const reportService = {
   },
 
   async getTodayReport(staffId: string): Promise<DailyReport | null> {
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayISO();
     const response = await api.get(`/reports/today`, { params: { staffId, date: today } });
     return response.data || null;
   },
@@ -94,7 +89,7 @@ export const reportService = {
   // The in-progress report lives on the server as well as on the device, so a
   // lost phone or a reinstall does not cost the day's entries.
   async getDraft(date?: string): Promise<Partial<DailyReport> | null> {
-    const params = { date: date || new Date().toISOString().split('T')[0] };
+    const params = { date: date || todayISO() };
     const response = await api.get('/reports/draft', { params });
     return response.data || null;
   },
@@ -109,8 +104,38 @@ export const reportService = {
   },
 
   async deleteDraft(date?: string): Promise<void> {
-    const params = { date: date || new Date().toISOString().split('T')[0] };
+    const params = { date: date || todayISO() };
     await api.delete('/reports/draft', { params });
+  },
+
+  // ─── Drafts, seen from the admin side ──────────────────────────────────────
+  // Reports a staff member started and never submitted. They come back shaped
+  // like a DailyReport with `isDraft` set, so the admin list renders both
+  // kinds of card the same way.
+  async getDrafts(params: { date?: string; stallId?: string; staffId?: string } = {}): Promise<DailyReport[]> {
+    const response = await api.get('/reports/drafts', { params });
+    return response.data ?? [];
+  },
+
+  async getDraftById(draftId: string): Promise<DailyReport> {
+    const response = await api.get(`/reports/drafts/${draftId}`);
+    return response.data;
+  },
+
+  /** Admin/moderator corrects the figures on an unfinished report. */
+  async updateDraftFigures(
+    draftId: string,
+    figures: Record<string, Record<string, number>>,
+    reason?: string,
+  ): Promise<DailyReport> {
+    const response = await api.patch(`/reports/drafts/${draftId}`, { ...figures, reason });
+    return response.data;
+  },
+
+  /** Admin/moderator files an unfinished report the staff member left behind. */
+  async submitDraft(draftId: string): Promise<DailyReport> {
+    const response = await api.post(`/reports/drafts/${draftId}/submit`);
+    return response.data;
   },
 
   /** Admin/moderator files a report for a staff member on a past date. */
@@ -150,7 +175,7 @@ export const reportService = {
     stallName: string,
     opts: { date?: string; source?: 'camera' | 'gallery' } = {},
   ): Promise<string> {
-    const date = opts.date || new Date().toISOString().split('T')[0];
+    const date = opts.date || todayISO();
     const formData = new FormData();
     formData.append('file', { uri, type: 'image/jpeg', name: `${category}_${Date.now()}.jpg` } as any);
     formData.append('upload_preset', CLOUDINARY_CONFIG.UPLOAD_PRESET);

@@ -9,6 +9,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
 import { reportService } from '../../services/reportService';
+import { notificationService } from '../../services/notificationService';
 import { aiService } from '../../services/aiService';
 import { fetchMenuConfig } from '../../store/slices/menuSlice';
 import { haptics } from '../../utils/haptics';
@@ -53,6 +54,9 @@ export default function AdminDashboard({ navigation }: any) {
   const dispatch = useDispatch<AppDispatch>();
   const [analytics, setAnalytics] = useState<any>(null);
   const [flaggedReports, setFlaggedReports] = useState<any[]>([]);
+  const [loadFailed, setLoadFailed] = useState(false);
+  // What the notifications screen would show — the badge has to agree with it
+  const [unreadCount, setUnreadCount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [period, setPeriod] = useState<7 | 30>(7);
@@ -68,13 +72,25 @@ export default function AdminDashboard({ navigation }: any) {
       ]);
       setAnalytics(data);
       setFlaggedReports(Array.isArray(flags) ? flags : []);
+      setLoadFailed(false);
     } catch {
-      // Keep previous data on error
+      // Keep whatever was already on screen, but say so — a silent failure here
+      // used to render as a dashboard full of zeros
+      setLoadFailed(true);
     } finally {
       setIsLoading(false);
       setRefreshing(false);
     }
   }, [period]);
+
+  const loadUnreadCount = useCallback(async () => {
+    try {
+      const { unreadCount: unread } = await notificationService.getNotifications();
+      setUnreadCount(unread ?? 0);
+    } catch {
+      // A badge is not worth an error message
+    }
+  }, []);
 
   const loadAiInsights = useCallback(async () => {
     setAiLoading(true);
@@ -91,8 +107,15 @@ export default function AdminDashboard({ navigation }: any) {
   useEffect(() => { setIsLoading(true); loadData(); }, [period]);
   useEffect(() => { if (user?.stallId) dispatch(fetchMenuConfig(user.stallId)); }, []);
   useEffect(() => { loadAiInsights(); }, []);
+  useEffect(() => { loadUnreadCount(); }, [loadUnreadCount]);
 
-  const onRefresh = () => { setRefreshing(true); loadData(); };
+  // Reading the notifications clears them, so the badge is re-checked on return
+  useEffect(
+    () => navigation.addListener('focus', loadUnreadCount),
+    [navigation, loadUnreadCount],
+  );
+
+  const onRefresh = () => { setRefreshing(true); loadData(); loadUnreadCount(); };
 
   // ─── Derived values ────────────────────────────────────────────────────────
   const summary = analytics?.summary ?? {};
@@ -154,9 +177,9 @@ export default function AdminDashboard({ navigation }: any) {
           onPress={() => { haptics.light(); navigation.navigate('Notifications'); }}
         >
           <Text style={styles.notifIcon}>🔔</Text>
-          {flaggedReports.length > 0 && (
+          {unreadCount > 0 && (
             <View style={styles.notifBadge}>
-              <Text style={styles.notifCount}>{flaggedReports.length}</Text>
+              <Text style={styles.notifCount}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
             </View>
           )}
         </TouchableOpacity>
@@ -217,6 +240,18 @@ export default function AdminDashboard({ navigation }: any) {
         <ActivityIndicator style={{ margin: SPACING.xl * 2 }} color={COLORS.primary} />
       ) : (
         <>
+          {loadFailed && (
+            <TouchableOpacity
+              style={styles.loadError}
+              onPress={() => { haptics.light(); setIsLoading(true); loadData(); }}
+            >
+              <Text style={styles.loadErrorText}>
+                ⚠️  Could not reach the server{analytics ? ' — showing the last figures' : ''}.
+              </Text>
+              <Text style={styles.loadErrorAction}>Tap to retry</Text>
+            </TouchableOpacity>
+          )}
+
           {/* KPI Cards — real data */}
           <View style={styles.kpiGrid}>
             <KpiCard
@@ -358,6 +393,7 @@ export default function AdminDashboard({ navigation }: any) {
                 { label: 'P&L', icon: '📈', screen: 'PnLReport' },
                 { label: 'Payroll', icon: '💼', screen: 'Payroll' },
                 { label: 'Attendance', icon: '📅', screen: 'Attendance' },
+                { label: 'UPI Check', icon: '📱', screen: 'PaymentMonitor' },
                 { label: 'Audit Log', icon: '🔍', screen: 'AuditLog' },
               ].map((action) => (
                 <TouchableOpacity
@@ -485,6 +521,15 @@ const styles = StyleSheet.create({
   toggleBtnActive: { backgroundColor: COLORS.primaryBg, borderWidth: 1, borderColor: COLORS.border },
   toggleText: { fontSize: FONT_SIZE.sm, color: COLORS.muted },
   toggleTextActive: { color: COLORS.primaryLight, fontWeight: '700' },
+
+  loadError: {
+    marginHorizontal: SPACING.lg, marginBottom: SPACING.md,
+    backgroundColor: COLORS.dangerBg, borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1, borderColor: COLORS.danger,
+    paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
+  },
+  loadErrorText: { fontSize: FONT_SIZE.sm, color: COLORS.danger, fontWeight: '600' },
+  loadErrorAction: { fontSize: FONT_SIZE.xs, color: COLORS.danger, fontWeight: '700', marginTop: 2 },
 
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: SPACING.lg, gap: SPACING.md },
   kpiCard: {

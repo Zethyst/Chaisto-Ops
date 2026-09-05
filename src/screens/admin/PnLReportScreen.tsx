@@ -9,6 +9,7 @@ import { expenseService } from '../../services/expenseService';
 import { reportService } from '../../services/reportService';
 import { wastageService } from '../../services/wastageService';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
+import { todayISO, currentMonthISO } from '../../utils/date';
 import { haptics } from '../../utils/haptics';
 
 function monthLabel(m: string) {
@@ -30,7 +31,7 @@ function nextMonth(m: string): string {
 
 export default function PnLReportScreen() {
   const { user } = useSelector((s: RootState) => s.auth);
-  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [month, setMonth] = useState(() => currentMonthISO());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -102,9 +103,9 @@ export default function PnLReportScreen() {
         <Text style={styles.monthLabel}>{monthLabel(month)}</Text>
         <TouchableOpacity
           onPress={() => { haptics.selection(); setMonth(nextMonth(month)); }}
-          disabled={month >= new Date().toISOString().slice(0, 7)}
+          disabled={month >= currentMonthISO()}
         >
-          <Text style={[styles.monthArrow, month >= new Date().toISOString().slice(0, 7) && styles.arrowDisabled]}>›</Text>
+          <Text style={[styles.monthArrow, month >= currentMonthISO() && styles.arrowDisabled]}>›</Text>
         </TouchableOpacity>
       </View>
 

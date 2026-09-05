@@ -1,10 +1,11 @@
 import React from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput,  ActivityIndicator, KeyboardAvoidingView, Platform,
+  ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showAlert } from '../../components/AppAlert';
+import BufferedTextInput from '../../components/BufferedTextInput';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
 import {
@@ -183,17 +184,11 @@ export default function DailyReportScreen({ navigation }: any) {
 // ─── Step Components ──────────────────────────────────────────────────────────
 
 function NumberField({ label, value, onChange, unit, hint }: any) {
-  const [raw, setRaw] = React.useState<string>(value === 0 ? '' : String(value));
-
-  React.useEffect(() => {
-    const parsed = parseFloat(raw);
-    if (isNaN(parsed) || parsed !== value) {
-      setRaw(value === 0 ? '' : String(value));
-    }
-  }, [value]);
-
+  // Each keystroke goes to redux, which recomputes the report's metrics and
+  // comes back as a new `value`. BufferedTextInput keeps the typed text out of
+  // that round trip; a plain controlled input reordered characters here when
+  // anyone typed at speed.
   const handleChange = (t: string) => {
-    setRaw(t);
     const num = parseFloat(t);
     if (!isNaN(num)) onChange(num);
     else if (t === '' || t === '.') onChange(0);
@@ -204,10 +199,10 @@ function NumberField({ label, value, onChange, unit, hint }: any) {
       <Text style={stepStyles.fieldLabel}>{label}</Text>
       {hint && <Text style={stepStyles.fieldHint}>{hint}</Text>}
       <View style={stepStyles.inputRow}>
-        <TextInput
+        <BufferedTextInput
           style={stepStyles.input}
           keyboardType="decimal-pad"
-          value={raw}
+          value={value === 0 ? '' : String(value)}
           onChangeText={handleChange}
           placeholder="0"
           placeholderTextColor={COLORS.muted}

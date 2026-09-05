@@ -4,6 +4,7 @@ import { reportService } from '../../services/reportService';
 import { TallyData, ITEM_KEY_TO_SALES_FIELD, splitUnitKey, getSellableUnits } from './menuSlice';
 import { MenuItem } from '../../types';
 import { computeReportMetrics } from './antiCheatCalc';
+import { todayISO } from '../../utils/date';
 
 // Re-exported for backward compatibility with existing imports.
 export { computeReportMetrics };
@@ -27,7 +28,7 @@ const blankDraft = ({ staffId, stallId }: { staffId: string; stallId: string; st
   staffId,
   stallId,
   staffName: '',
-  date: new Date().toISOString().split('T')[0],
+  date: todayISO(),
   status: 'draft',
   flags: [],
   photos: { cash: '', stock: '', milkPacket: '', cartClosing: '' },
@@ -103,7 +104,7 @@ export const resumeOrStartReport = createAsyncThunk(
     { getState },
   ) => {
     const local = (getState() as any).reports.currentDraft as Partial<DailyReport> | null;
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayISO();
     if (local && local.date === today) return { draft: local, resumed: false };
 
     try {

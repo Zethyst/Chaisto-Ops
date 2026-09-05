@@ -11,9 +11,11 @@ import { authService } from '../../services/authService';
 import { AttendanceRecord } from '../../types';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
 import { haptics } from '../../utils/haptics';
+import { todayISO } from '../../utils/date';
 import { apiErrorMessage } from '../../utils/apiError';
 import { useLoggingStall } from '../shared/useLoggingStall';
-import DateStrip from '../../components/DateStrip';
+import DateStrip, { defaultDayFor } from '../../components/DateStrip';
+import MonthNavigator, { currentMonth, monthLabel } from '../../components/MonthNavigator';
 
 const STATUSES: { key: AttendanceRecord['status']; label: string; color: string; bg: string }[] = [
   { key: 'present', label: 'Present', color: COLORS.success, bg: COLORS.successBg },
@@ -22,12 +24,6 @@ const STATUSES: { key: AttendanceRecord['status']; label: string; color: string;
   { key: 'leave', label: 'Leave', color: COLORS.info, bg: COLORS.infoBg },
 ];
 
-function currentMonth() { return new Date().toISOString().slice(0, 7); }
-function today() { return new Date().toISOString().split('T')[0]; }
-function daysInMonth(m: string) {
-  const [y, mo] = m.split('-').map(Number);
-  return new Date(y, mo, 0).getDate();
-}
 
 export default function AttendanceScreen() {
   const { user } = useSelector((s: RootState) => s.auth);
@@ -45,7 +41,7 @@ export default function AttendanceScreen() {
   // Mark attendance modal
   const [markModal, setMarkModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<any>(null);
-  const [selectedDate, setSelectedDate] = useState(today());
+  const [selectedDate, setSelectedDate] = useState(todayISO());
   const [selectedStatus, setSelectedStatus] = useState<AttendanceRecord['status']>('present');
   const [saving, setSaving] = useState(false);
   const [markError, setMarkError] = useState<string | null>(null);
@@ -75,12 +71,12 @@ export default function AttendanceScreen() {
 
   useEffect(() => { load(); }, [month]);
 
-  // The day strip reaches back past the 1st, so follow the selected day into
-  // the previous month — otherwise its existing records and summary are missing
+  // The month stepper and the day strip are one control: stepping to another
+  // month moves the marked day into it, so you can never browse July while
+  // marking a September date
   useEffect(() => {
-    const selectedMonth = selectedDate.slice(0, 7);
-    if (selectedMonth !== month) setMonth(selectedMonth);
-  }, [selectedDate]);
+    if (selectedDate.slice(0, 7) !== month) setSelectedDate(defaultDayFor(month));
+  }, [month]);
 
   const openMarkModal = (staffMember: any) => {
     haptics.light();
@@ -145,8 +141,9 @@ export default function AttendanceScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.headerTitle}>My Attendance</Text>
-          <Text style={styles.headerSub}>{month}</Text>
+          <Text style={styles.headerSub}>{monthLabel(month)}</Text>
         </View>
+        <MonthNavigator value={month} onChange={setMonth} />
         {records.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={{ fontSize: 40 }}>📅</Text>
@@ -179,8 +176,9 @@ export default function AttendanceScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Attendance</Text>
-          <Text style={styles.headerSub}>{month}</Text>
+          <Text style={styles.headerSub}>{monthLabel(month)}</Text>
         </View>
+        <MonthNavigator value={month} onChange={setMonth} />
 
         {/* Monthly summary */}
         {summary.length > 0 && (
@@ -203,10 +201,10 @@ export default function AttendanceScreen() {
         {/* Day being marked — attendance is often entered a few days late */}
         <Text style={styles.sectionTitle}>Mark Attendance</Text>
         <View style={styles.dateStripWrap}>
-          <DateStrip value={selectedDate} onChange={setSelectedDate} days={14} />
+          <DateStrip value={selectedDate} onChange={setSelectedDate} month={month} />
         </View>
         <Text style={styles.dateHint}>
-          {selectedDate === today()
+          {selectedDate === todayISO()
             ? "Marking today — pick a day above to record a date you missed"
             : `Marking ${new Date(selectedDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}`}
         </Text>

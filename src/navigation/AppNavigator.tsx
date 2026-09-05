@@ -29,6 +29,9 @@ import MenuPricingScreen from '../screens/admin/MenuPricingScreen';
 import ReportsListScreen from '../screens/admin/ReportsListScreen';
 import BackfillReportScreen from '../screens/admin/BackfillReportScreen';
 import EditReportScreen from '../screens/admin/EditReportScreen';
+import EditDraftScreen from '../screens/admin/EditDraftScreen';
+import PaymentMonitorScreen from '../screens/admin/PaymentMonitorScreen';
+import PaymentAccessGate from '../components/PaymentAccessGate';
 import StallManagementScreen from '../screens/admin/StallManagementScreen';
 
 // Staff
@@ -161,6 +164,8 @@ function AdminStack() {
       <Stack.Screen name="ReportsList" component={ReportsListScreen} options={{ ...headerOpts, title: 'Daily Reports' }} />
       <Stack.Screen name="BackfillReport" component={BackfillReportScreen} options={{ ...headerOpts, title: 'Add Past Report' }} />
       <Stack.Screen name="EditReport" component={EditReportScreen} options={{ ...headerOpts, title: 'Edit Report' }} />
+      <Stack.Screen name="EditDraft" component={EditDraftScreen} options={{ ...headerOpts, title: 'Unfinished Report' }} />
+      <Stack.Screen name="PaymentMonitor" component={PaymentMonitorScreen} options={{ ...headerOpts, title: 'UPI Payment Check' }} />
       <Stack.Screen name="StallManagement" component={StallManagementScreen} options={{ ...headerOpts, title: 'Stall Management' }} />
     </Stack.Navigator>
   );
@@ -211,6 +216,9 @@ export default function AppNavigator() {
   };
 
   return (
-    <NavigationContainer>{getStack()}</NavigationContainer>
+    <NavigationContainer>
+      {/* Staff phones stay closed until UPI payment records are switched on */}
+      <PaymentAccessGate>{getStack()}</PaymentAccessGate>
+    </NavigationContainer>
   );
 }

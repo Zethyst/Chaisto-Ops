@@ -2,27 +2,43 @@ const admin = require('firebase-admin');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
 
-let firebaseApp;
+let firebaseReady = false;
 try {
-  firebaseApp = admin.initializeApp({
+  admin.initializeApp({
     credential: admin.credential.cert({
       projectId: process.env.FIREBASE_PROJECT_ID,
       privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
     }),
   });
+  firebaseReady = true;
 } catch (err) {
-  if (err.code !== 'app/duplicate-app') console.error('Firebase init error:', err.message);
+  if (err.code === 'app/duplicate-app') firebaseReady = true;
+  else console.error('Firebase init error:', err.message);
 }
 
-const messaging = admin.messaging();
+// Push is best-effort and resolved per call, never at import time: with no
+// Firebase credentials `admin.messaging()` throws, and at module scope that
+// took the whole API down at boot. Everything in-app reads the stored
+// Notification rows, so those must be written even when no push can be sent.
+function messaging() {
+  if (!firebaseReady) return null;
+  try {
+    return admin.messaging();
+  } catch (err) {
+    console.error('FCM unavailable:', err.message);
+    firebaseReady = false;
+    return null;
+  }
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 async function pushToToken(token, title, body, data = {}) {
-  if (!token) return;
+  const fcm = messaging();
+  if (!token || !fcm) return;
   try {
-    await messaging.send({
+    await fcm.send({
       token,
       notification: { title, body },
       data: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])),
@@ -53,13 +69,14 @@ async function saveAndPushToRole(role, type, title, body, data = {}) {
       Notification.create({ userId: u._id, type, title, message: body, data, read: false })
     ));
 
+    const fcm = messaging();
     const tokens = users.map((u) => u.fcmToken).filter(Boolean);
-    if (!tokens.length) return;
+    if (!fcm || !tokens.length) return;
 
     const BATCH = 500;
     for (let i = 0; i < tokens.length; i += BATCH) {
       try {
-        await messaging.sendEachForMulticast({
+        await fcm.sendEachForMulticast({
           tokens: tokens.slice(i, i + BATCH),
           notification: { title, body },
           data: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])),
@@ -95,6 +112,16 @@ const notificationService = {
     const body = `${report.staffName}: ${highFlags[0].message}`;
     const data = { type: 'suspicious_activity', reportId: report._id.toString(), severity: 'high' };
     await saveAndPushToRole('admin', 'suspicious_activity', title, body, data);
+  },
+
+  notifyAdminPaymentMonitoringOff: async (staffName) => {
+    // Worth knowing immediately: the phone stops reporting the moment
+    // notification access is switched off, and nothing else would show it
+    const title = '🚨 Payment Monitoring Switched Off';
+    const body = `${staffName} turned off UPI payment monitoring on their phone`;
+    await saveAndPushToRole('admin', 'suspicious_activity', title, body, {
+      type: 'payment_monitoring_off',
+    });
   },
 
   notifyAdminMissingReport: async (staffName, stallName) => {

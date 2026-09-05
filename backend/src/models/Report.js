@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { computeAntiCheatMetrics } = require('../utils/antiCheat');
+const { mergeFlags, statusForFlags } = require('../utils/reportFlags');
 
 const locationSchema = new mongoose.Schema({
   latitude: { type: Number, required: true },
@@ -19,7 +20,7 @@ const stockSchema = new mongoose.Schema({
 const flagSchema = new mongoose.Schema({
   type: {
     type: String,
-    enum: ['milk_mismatch', 'momo_stock_mismatch', 'revenue_mismatch', 'momo_revenue_mismatch', 'low_upi', 'sales_drop', 'location_mismatch', 'missing_report'],
+    enum: ['milk_mismatch', 'momo_stock_mismatch', 'revenue_mismatch', 'momo_revenue_mismatch', 'low_upi', 'upi_undeclared', 'sales_drop', 'location_mismatch', 'missing_report'],
   },
   severity: { type: String, enum: ['low', 'medium', 'high'] },
   message: String,
@@ -127,14 +128,16 @@ reportSchema.index({ 'flags.severity': 1 });
 reportSchema.pre('save', function (next) {
   const { computed, flags, status } = computeAntiCheatMetrics(this);
   this.computed = computed;
-  this.flags = flags;
+  // Flags decided outside the figures — the GPS check, the UPI check against
+  // the staff phone — survive the recompute instead of being wiped by it
+  this.flags = mergeFlags(this.flags, flags);
 
   // An admin's verdict outlives a recompute — saving the document for an
   // unrelated reason (attaching the cart photo, say) must not quietly drop a
   // report back to "flagged" after it was reviewed or cleared. A route that
   // does want the verdict re-derived resets the status before saving.
   const adminDecided = this.status === 'reviewed' || this.status === 'cleared';
-  if (!adminDecided) this.status = status;
+  if (!adminDecided) this.status = statusForFlags(this.flags, status);
   next();
 });
 

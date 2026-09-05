@@ -40,6 +40,12 @@ router.post('/', ...allRoles, [
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
+  // Past days are expected — logs are often entered late — but a day that has
+  // not happened yet cannot have anything recorded against it
+  if (req.body.date > new Date().toISOString().split('T')[0]) {
+    return res.status(400).json({ error: 'Cannot log for a future date' });
+  }
+
   // Staff can only log for their own stall
   if (req.user.role === 'staff' && req.user.stallId?.toString() !== req.body.stallId) {
     return res.status(403).json({ error: 'Can only log expenses for your assigned stall' });

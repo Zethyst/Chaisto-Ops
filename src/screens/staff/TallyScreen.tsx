@@ -17,6 +17,7 @@ import { resumeOrStartReport, preFillFromTally } from '../../store/slices/report
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
 import { haptics } from '../../utils/haptics';
 import { showAlert } from '../../components/AppAlert';
+import BufferedTextInput from '../../components/BufferedTextInput';
 import { useLanguage } from '../../i18n';
 
 // ─── Animated counter button ──────────────────────────────────────────────────
@@ -162,22 +163,17 @@ export default function TallyScreen({ navigation }: any) {
   const { items, tally, milkCostPerPacket, milkMlPerPacket } = useSelector((s: RootState) => s.menu);
   const { todayReport } = useSelector((s: RootState) => s.reports);
 
-  const [upiInput, setUpiInput] = useState(tally.upi === 0 ? '' : String(tally.upi));
-  const [cashInput, setCashInput] = useState(tally.cash === 0 ? '' : String(tally.cash));
-  const [cigaretteInput, setCigaretteInput] = useState(tally.cigarettes ? String(tally.cigarettes) : '');
+  // Shown straight from the tally rather than seeded from it: ensureFreshTally
+  // zeroes yesterday's figures on the first open of a new day, which happens
+  // after the first render, and a seeded copy would keep showing them over an
+  // empty tally. BufferedTextInput is what makes reading redux live safe here.
+  const moneyText = (n: number) => (n ? String(n) : '');
   const [recipeModal, setRecipeModal] = useState<{ name: string; recipe: string } | null>(null);
 
   useEffect(() => {
     dispatch(ensureFreshTally());
     if (user?.stallId) dispatch(fetchMenuConfig(user.stallId));
   }, []);
-
-  // Sync input fields when tally resets
-  useEffect(() => {
-    setUpiInput(tally.upi === 0 ? '' : String(tally.upi));
-    setCashInput(tally.cash === 0 ? '' : String(tally.cash));
-    setCigaretteInput(tally.cigarettes ? String(tally.cigarettes) : '');
-  }, [tally.date]);
 
   const activeItems = items.filter(i => i.active).sort((a, b) => a.sortOrder - b.sortOrder);
 
@@ -210,9 +206,6 @@ export default function TallyScreen({ navigation }: any) {
         text: t('tallyResetBtn'), style: 'destructive',
         onPress: () => {
           dispatch(resetTally());
-          setUpiInput('');
-          setCashInput('');
-          setCigaretteInput('');
           haptics.success();
         },
       },
@@ -428,11 +421,10 @@ export default function TallyScreen({ navigation }: any) {
             </View>
             <View style={styles.paymentInputWrap}>
               <Text style={styles.rupeeSign}>₹</Text>
-              <TextInput
+              <BufferedTextInput
                 style={styles.paymentInput}
-                value={cigaretteInput}
+                value={moneyText(tally.cigarettes ?? 0)}
                 onChangeText={(text) => {
-                  setCigaretteInput(text);
                   const n = parseFloat(text);
                   dispatch(setTallyCigarettes(isNaN(n) ? 0 : n));
                 }}
@@ -456,11 +448,10 @@ export default function TallyScreen({ navigation }: any) {
             </View>
             <View style={styles.paymentInputWrap}>
               <Text style={styles.rupeeSign}>₹</Text>
-              <TextInput
+              <BufferedTextInput
                 style={styles.paymentInput}
-                value={upiInput}
+                value={moneyText(tally.upi)}
                 onChangeText={(t) => {
-                  setUpiInput(t);
                   const n = parseFloat(t);
                   dispatch(setTallyUpi(isNaN(n) ? 0 : n));
                 }}
@@ -480,11 +471,10 @@ export default function TallyScreen({ navigation }: any) {
             </View>
             <View style={styles.paymentInputWrap}>
               <Text style={styles.rupeeSign}>₹</Text>
-              <TextInput
+              <BufferedTextInput
                 style={styles.paymentInput}
-                value={cashInput}
+                value={moneyText(tally.cash)}
                 onChangeText={(t) => {
-                  setCashInput(t);
                   const n = parseFloat(t);
                   dispatch(setTallyCash(isNaN(n) ? 0 : n));
                 }}
@@ -509,7 +499,9 @@ export default function TallyScreen({ navigation }: any) {
 
         {/* Notes */}
         <Text style={[styles.sectionLabel, { marginTop: SPACING.xl }]}>{t('tallyNotesSectionLabel')}</Text>
-        <TextInput
+        {/* Buffered: the notes live in redux, and a plain controlled input
+            reordered characters when typed at speed */}
+        <BufferedTextInput
           style={styles.notesInput}
           value={tally.notes}
           onChangeText={(text) => dispatch(setTallyNotes(text))}

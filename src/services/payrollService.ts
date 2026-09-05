@@ -1,15 +1,7 @@
-import axios from 'axios';
-import { API_CONFIG } from '../constants';
+import { createApiClient } from './apiClient';
 import { PayrollSummary } from '../types';
-import { authService } from './authService';
 
-const api = axios.create({ baseURL: API_CONFIG.BASE_URL, timeout: API_CONFIG.TIMEOUT });
-
-api.interceptors.request.use(async (config) => {
-  const token = await authService.getStoredToken();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+const api = createApiClient();
 
 export const payrollService = {
   async getMyPayroll(month: string): Promise<PayrollSummary> {

@@ -11,12 +11,7 @@ import { payrollService } from '../../services/payrollService';
 import { PayrollSummary } from '../../types';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
 import { haptics } from '../../utils/haptics';
-
-function currentMonth() { return new Date().toISOString().slice(0, 7); }
-function monthLabel(m: string) {
-  const [y, mo] = m.split('-');
-  return new Date(parseInt(y), parseInt(mo) - 1).toLocaleString('en-IN', { month: 'long', year: 'numeric' });
-}
+import MonthNavigator, { currentMonth } from '../../components/MonthNavigator';
 
 export default function PayrollScreen() {
   const { user } = useSelector((s: RootState) => s.auth);
@@ -94,29 +89,7 @@ export default function PayrollScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={COLORS.primaryLight} />}
       >
-        {/* Month picker */}
-        <View style={styles.monthRow}>
-          <TouchableOpacity onPress={() => {
-            haptics.selection();
-            const [y, m] = month.split('-').map(Number);
-            const d = new Date(y, m - 2);
-            setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-          }}>
-            <Text style={styles.monthArrow}>‹</Text>
-          </TouchableOpacity>
-          <Text style={styles.monthLabel}>{monthLabel(month)}</Text>
-          <TouchableOpacity
-            disabled={month >= currentMonth()}
-            onPress={() => {
-              haptics.selection();
-              const [y, m] = month.split('-').map(Number);
-              const d = new Date(y, m);
-              setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-            }}
-          >
-            <Text style={[styles.monthArrow, month >= currentMonth() && { color: COLORS.border }]}>›</Text>
-          </TouchableOpacity>
-        </View>
+        <MonthNavigator value={month} onChange={setMonth} />
 
         {/* Summary bar */}
         <View style={styles.summaryBar}>
@@ -257,13 +230,6 @@ const styles = StyleSheet.create({
   content: { paddingBottom: 40 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  monthRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    padding: SPACING.xl, backgroundColor: COLORS.white,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: SPACING.xl,
-  },
-  monthArrow: { fontSize: 28, color: COLORS.primary, fontWeight: '700', paddingHorizontal: SPACING.md },
-  monthLabel: { fontSize: FONT_SIZE.lg, fontWeight: '700', color: COLORS.black, minWidth: 160, textAlign: 'center' },
 
   summaryBar: {
     flexDirection: 'row', backgroundColor: COLORS.white,

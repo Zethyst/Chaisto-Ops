@@ -7,6 +7,9 @@ const User = require('../models/User');
 const StallConfig = require('../models/StallConfig');
 const { authenticate, authorize, adminOnly, adminOrModerator, allRoles } = require('../middleware/auth');
 const notificationService = require('../services/notificationService');
+const { diffFigures, asEditHistory } = require('../utils/reportEdits');
+const { draftAsReport, recomputeDraft } = require('../utils/reportDrafts');
+const { reconcileReport } = require('../services/paymentReconciliationService');
 const { deviceService } = require('../services/deviceService');
 const AuditLog = require('../models/AuditLog');
 
@@ -74,6 +77,10 @@ router.post('/', ...allRoles, [
     // The draft has served its purpose — the submitted report is now the record
     await ReportDraft.deleteOne({ staffId: req.user._id, date });
 
+    // Check the declared UPI against what the staff phone recorded receiving.
+    // If the phone has not synced yet, the sync re-runs this for the same day.
+    await reconcileReport(req.user._id, date).catch(() => {});
+
     // Send notifications
     await notificationService.notifyAdminReportSubmitted(report, req.user.name);
     if (report.status === 'flagged') {
@@ -139,6 +146,8 @@ router.post('/backfill', ...adminOrModerator, [
 
     // A draft the staff had half-finished for that day is now superseded
     await ReportDraft.deleteOne({ staffId, date });
+
+    await reconcileReport(staffId, date).catch(() => {});
 
     await AuditLog.create({
       actorId: req.user._id,
@@ -256,6 +265,198 @@ router.delete('/draft', ...allRoles, async (req, res) => {
   }
 });
 
+// ─── GET /reports/drafts — Unfinished reports (admin/moderator) ──────────────
+// Reports a staff member started but never submitted. They sit alongside the
+// day's filed reports in the admin list so a half-entered day is visible
+// instead of silently missing.
+router.get('/drafts', ...adminOrModerator, async (req, res) => {
+  const { date, stallId, staffId } = req.query;
+
+  const filter = {};
+  if (date) filter.date = date;
+  if (stallId) filter.stallId = stallId;
+  if (staffId) filter.staffId = staffId;
+
+  try {
+    const drafts = await ReportDraft.find(filter)
+      .sort({ updatedAt: -1 })
+      .limit(100)
+      .populate('staffId', 'name phone')
+      .populate('stallId', 'name');
+
+    // A draft for a day that already has a submitted report is a leftover, not
+    // unfinished work — the submission supersedes it, so it is not listed
+    const submitted = await Report.find({
+      date: { $in: [...new Set(drafts.map((d) => d.date))] },
+      staffId: { $in: drafts.map((d) => d.staffId?._id || d.staffId) },
+    }).select('staffId date');
+    const superseded = new Set(submitted.map((r) => `${r.staffId}_${r.date}`));
+
+    res.json(drafts
+      .filter((d) => !superseded.has(`${d.staffId?._id || d.staffId}_${d.date}`))
+      .map(draftAsReport));
+  } catch (err) {
+    console.error('Fetch drafts error:', err);
+    res.status(500).json({ error: 'Could not fetch drafts' });
+  }
+});
+
+// ─── GET /reports/drafts/:id ─────────────────────────────────────────────────
+router.get('/drafts/:id', ...adminOrModerator, async (req, res) => {
+  try {
+    const draft = await ReportDraft.findById(req.params.id)
+      .populate('staffId', 'name phone')
+      .populate('stallId', 'name');
+    if (!draft) return res.status(404).json({ error: 'Draft not found' });
+    res.json(draftAsReport(draft));
+  } catch {
+    res.status(500).json({ error: 'Could not fetch draft' });
+  }
+});
+
+// ─── PATCH /reports/drafts/:id — Admin corrects an unfinished report ─────────
+// Same editable figures as a submitted report. The staff member picks the draft
+// up with the corrected numbers, so the change is recorded on the draft and in
+// the audit log rather than applied silently.
+router.patch('/drafts/:id', ...adminOrModerator, async (req, res) => {
+  try {
+    const draft = await ReportDraft.findById(req.params.id)
+      .populate('staffId', 'name phone')
+      .populate('stallId', 'name');
+    if (!draft) return res.status(404).json({ error: 'Draft not found' });
+
+    const data = { ...(draft.data || {}) };
+    const edits = diffFigures(req.body, (section, field) => data[section]?.[field]);
+    if (edits.length === 0) {
+      return res.status(400).json({ error: 'Nothing changed' });
+    }
+
+    edits.forEach(({ section, field, to }) => {
+      data[section] = { ...(data[section] || {}), [field]: to };
+    });
+
+    // Corrected figures deserve a fresh verdict — the draft's own flags are
+    // what the admin is looking at while fixing the numbers
+    const changes = asEditHistory(edits);
+    draft.data = {
+      ...recomputeDraft(data),
+      editHistory: [
+        ...(data.editHistory || []),
+        {
+          editedById: req.user._id,
+          editedByName: req.user.name,
+          editedAt: new Date(),
+          reason: typeof req.body.reason === 'string' ? req.body.reason.slice(0, 300) : undefined,
+          changes,
+        },
+      ],
+    };
+    draft.markModified('data');
+    await draft.save();
+
+    await AuditLog.create({
+      actorId: req.user._id,
+      actorName: req.user.name,
+      actorRole: req.user.role,
+      action: 'report_draft_edited',
+      entity: 'ReportDraft',
+      entityId: draft._id,
+      details: {
+        staffName: draft.staffId?.name,
+        date: draft.date,
+        changes,
+        reason: req.body.reason,
+      },
+      ip: req.ip,
+    }).catch(() => {}); // non-blocking
+
+    res.json(draftAsReport(draft));
+  } catch (err) {
+    console.error('Edit draft error:', err);
+    res.status(500).json({ error: 'Could not update draft' });
+  }
+});
+
+// ─── POST /reports/drafts/:id/submit — Admin files an unfinished report ──────
+// For a day the staff member entered but never submitted. Only photos already
+// uploaded with the draft carry over; like a backfill, the report is stamped
+// with who filed it so it is never mistaken for a first-hand submission.
+router.post('/drafts/:id/submit', ...adminOrModerator, async (req, res) => {
+  try {
+    const draft = await ReportDraft.findById(req.params.id).populate('staffId', 'name');
+    if (!draft) return res.status(404).json({ error: 'Draft not found' });
+
+    const data = draft.data || {};
+    const stallId = draft.stallId || data.stallId;
+    if (!stallId) {
+      return res.status(400).json({ error: 'This draft has no stall, so the report has nowhere to go' });
+    }
+
+    const staffId = draft.staffId?._id || draft.staffId;
+    const existing = await Report.findOne({ staffId, date: draft.date });
+    if (existing) {
+      // The staff member submitted in the meantime — the draft is spent
+      await ReportDraft.deleteOne({ _id: draft._id });
+      return res.status(409).json({ error: 'This report has already been submitted', reportId: existing._id });
+    }
+
+    // A draft can hold a local device path for a photo that never finished
+    // uploading; only hosted URLs are worth carrying onto the report
+    const photos = Object.fromEntries(
+      Object.entries(data.photos || {}).filter(([, url]) => typeof url === 'string' && /^https?:\/\//.test(url))
+    );
+
+    const report = new Report({
+      staffId,
+      stallId,
+      staffName: draft.staffId?.name || data.staffName,
+      date: draft.date,
+      openingStock: data.openingStock || {},
+      purchases: data.purchases || {},
+      sales: data.sales || {},
+      payments: data.payments || {},
+      closingStock: data.closingStock || {},
+      photos,
+      location: data.location || { latitude: 0, longitude: 0 },
+      // Backdated to the end of the day being recorded, matching a backfill, so
+      // it sorts and aggregates alongside that day's real reports
+      submittedAt: new Date(`${draft.date}T21:00:00.000Z`),
+      isBackfill: true,
+      enteredById: req.user._id,
+      enteredByName: req.user.name,
+      editHistory: data.editHistory || [],
+    });
+
+    await report.save(); // pre-save middleware computes anti-cheat metrics
+    await ReportDraft.deleteOne({ _id: draft._id });
+
+    // Same UPI check a staff submission gets — a report filed on someone's
+    // behalf is still a report about money they collected
+    await reconcileReport(staffId, draft.date).catch(() => {});
+
+    await AuditLog.create({
+      actorId: req.user._id,
+      actorName: req.user.name,
+      actorRole: req.user.role,
+      action: 'report_draft_submitted',
+      entity: 'Report',
+      entityId: report._id,
+      details: { staffName: report.staffName, date: report.date, draftId: draft._id },
+      ip: req.ip,
+    }).catch(() => {}); // non-blocking
+
+    if (report.status === 'flagged') {
+      await notificationService.notifyAdminSuspiciousActivity(report).catch(() => {});
+    }
+
+    res.status(201).json(report);
+  } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ error: 'Duplicate report for this date' });
+    console.error('Submit draft error:', err);
+    res.status(500).json({ error: 'Could not file this draft' });
+  }
+});
+
 // ─── GET /reports/today — Today's report for a staff member ──────────────────
 router.get('/today', ...allRoles, async (req, res) => {
   const staffId = req.user.role === 'staff' ? req.user._id : req.query.staffId;
@@ -342,37 +543,23 @@ router.patch('/:id/review', ...adminOrModerator, async (req, res) => {
 });
 
 // ─── PATCH /reports/:id — Admin corrects a submitted report's figures ────────
-// Only the numbers are editable. Who reported it, when, the photos and the GPS
-// are the evidence trail and stay fixed; every change is recorded on the report
-// itself so the staff member's original figures remain traceable.
-const EDITABLE_SECTIONS = ['openingStock', 'purchases', 'sales', 'payments', 'closingStock'];
+// Which figures are editable is shared with the draft edit below; every change
+// is recorded on the report itself so the staff member's original figures
+// remain traceable.
 
 router.patch('/:id', ...adminOrModerator, async (req, res) => {
   try {
     const report = await Report.findById(req.params.id);
     if (!report) return res.status(404).json({ error: 'Report not found' });
 
-    const changes = [];
-    EDITABLE_SECTIONS.forEach((section) => {
-      const incoming = req.body[section];
-      if (!incoming || typeof incoming !== 'object') return;
-
-      Object.entries(incoming).forEach(([field, rawValue]) => {
-        const value = Number(rawValue);
-        if (!Number.isFinite(value) || value < 0) return;
-
-        const previous = report[section]?.[field] ?? 0;
-        if (previous === value) return;
-
-        changes.push({ field: `${section}.${field}`, from: previous, to: value });
-        report[section][field] = value;
-      });
-      report.markModified(section);
-    });
-
-    if (changes.length === 0) {
+    const edits = diffFigures(req.body, (section, field) => report[section]?.[field]);
+    if (edits.length === 0) {
       return res.status(400).json({ error: 'Nothing changed' });
     }
+
+    edits.forEach(({ section, field, to }) => { report[section][field] = to; });
+    [...new Set(edits.map((e) => e.section))].forEach((section) => report.markModified(section));
+    const changes = asEditHistory(edits);
 
     report.editHistory.push({
       editedById: req.user._id,
@@ -386,6 +573,9 @@ router.patch('/:id', ...adminOrModerator, async (req, res) => {
     // let the pre-save anti-cheat pass decide the status again
     report.status = 'submitted';
     await report.save();
+
+    // A corrected UPI figure changes what counts as unaccounted for
+    await reconcileReport(report.staffId, report.date).catch(() => {});
 
     await AuditLog.create({
       actorId: req.user._id,

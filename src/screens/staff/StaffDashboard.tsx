@@ -15,14 +15,16 @@ import { notificationService } from '../../services/notificationService';
 import { DailyReport, PayrollSummary } from '../../types';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
 import { haptics } from '../../utils/haptics';
+import { toISODate, currentMonthISO } from '../../utils/date';
 import { useLanguage } from '../../i18n';
 import BrandedLogoMark from '../../components/BrandedLogoMark';
+import PaymentMonitorCard from '../../components/PaymentMonitorCard';
 
 function lastNDays(n: number): string[] {
   return Array.from({ length: n }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    return d.toISOString().split('T')[0];
+    return toISODate(d);
   });
 }
 
@@ -34,7 +36,7 @@ function dayLabel(dateStr: string, index: number, t: any): string {
 }
 
 function currentMonth(): string {
-  return new Date().toISOString().slice(0, 7);
+  return currentMonthISO();
 }
 
 export default function StaffDashboard({ navigation }: any) {
@@ -169,6 +171,9 @@ export default function StaffDashboard({ navigation }: any) {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* UPI payment records — the disclosure, and the way to switch it on */}
+      {/* <PaymentMonitorCard /> */}
 
       {/* Monthly Income Card */}
       <View style={styles.incomeCard}>

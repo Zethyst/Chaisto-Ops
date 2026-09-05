@@ -50,6 +50,8 @@ export interface InventoryItem {
 
 export interface DailyReport {
   id: string;
+  /** Mongo's id, as it comes back from the API — `id` is the client-side one */
+  _id?: string;
   stallId: string;
   staffId: string;
   staffName: string;
@@ -140,10 +142,16 @@ export interface DailyReport {
 
   flags: SuspicionFlag[];
   status: 'draft' | 'submitted' | 'reviewed' | 'flagged';
+
+  /** Set on an unfinished report a staff member never submitted */
+  isDraft?: boolean;
+  /** When the draft was last autosaved — drafts have no submittedAt */
+  updatedAt?: string;
+  stallName?: string;
 }
 
 export interface SuspicionFlag {
-  type: 'milk_mismatch' | 'momo_stock_mismatch' | 'revenue_mismatch' | 'momo_revenue_mismatch' | 'low_upi' | 'sales_drop' | 'location_mismatch' | 'missing_report';
+  type: 'milk_mismatch' | 'momo_stock_mismatch' | 'revenue_mismatch' | 'momo_revenue_mismatch' | 'low_upi' | 'upi_undeclared' | 'sales_drop' | 'location_mismatch' | 'missing_report';
   severity: 'low' | 'medium' | 'high';
   message: string;
   value?: number;
@@ -337,6 +345,8 @@ export type RootStackParamList = {
   ReportDetail: { reportId: string };
   BackfillReport: undefined;
   EditReport: { reportId: string };
+  EditDraft: { draftId: string };
+  PaymentMonitor: undefined;
   AddStaff: undefined;
   ExpenseTracker: undefined;
   WastageLog: undefined;
