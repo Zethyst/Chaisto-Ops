@@ -132,6 +132,16 @@ export const reportService = {
     return response.data;
   },
 
+  /**
+   * Admin/moderator attaches a photo to an unfinished report. Only a slot the
+   * staff member left empty can be filled — their own photos are the evidence
+   * for the day and the server refuses to overwrite them.
+   */
+  async addDraftPhoto(draftId: string, category: string, url: string): Promise<DailyReport> {
+    const response = await api.patch(`/reports/drafts/${draftId}/photos`, { category, url });
+    return response.data;
+  },
+
   /** Admin/moderator files an unfinished report the staff member left behind. */
   async submitDraft(draftId: string): Promise<DailyReport> {
     const response = await api.post(`/reports/drafts/${draftId}/submit`);

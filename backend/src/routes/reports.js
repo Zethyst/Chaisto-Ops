@@ -377,6 +377,59 @@ router.patch('/drafts/:id', ...adminOrModerator, async (req, res) => {
   }
 });
 
+// ─── PATCH /reports/drafts/:id/photos — Admin adds a photo to a draft ────────
+// For a day the staff member entered figures but never got the photos in. The
+// admin uploads from the gallery, so only a hosted URL is accepted here.
+//
+// An empty slot can be filled; one the staff member already captured cannot be
+// overwritten. Their photo is the evidence for that day, and an admin replacing
+// it would leave no trace of what was originally shot.
+const DRAFT_PHOTO_KEYS = ['cash', 'stock', 'milkPacket', 'cartClosing'];
+
+router.patch('/drafts/:id/photos', ...adminOrModerator, [
+  body('category').isIn(DRAFT_PHOTO_KEYS).withMessage('Unknown photo category'),
+  body('url').isURL().withMessage('Photo must be an uploaded URL'),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+  const { category, url } = req.body;
+
+  try {
+    const draft = await ReportDraft.findById(req.params.id)
+      .populate('staffId', 'name phone')
+      .populate('stallId', 'name');
+    if (!draft) return res.status(404).json({ error: 'Draft not found' });
+
+    const data = { ...(draft.data || {}) };
+    const photos = { ...(data.photos || {}) };
+    if (photos[category]) {
+      return res.status(409).json({ error: 'This photo was already taken for the day and cannot be replaced' });
+    }
+
+    photos[category] = url;
+    draft.data = { ...data, photos };
+    draft.markModified('data');
+    await draft.save();
+
+    await AuditLog.create({
+      actorId: req.user._id,
+      actorName: req.user.name,
+      actorRole: req.user.role,
+      action: 'report_photo_added',
+      entity: 'ReportDraft',
+      entityId: draft._id,
+      details: { category, staffName: draft.staffId?.name, date: draft.date },
+      ip: req.ip,
+    }).catch(() => {}); // non-blocking
+
+    res.json(draftAsReport(draft));
+  } catch (err) {
+    console.error('Add draft photo error:', err);
+    res.status(500).json({ error: 'Could not add the photo' });
+  }
+});
+
 // ─── POST /reports/drafts/:id/submit — Admin files an unfinished report ──────
 // For a day the staff member entered but never submitted. Only photos already
 // uploaded with the draft carry over; like a backfill, the report is stamped

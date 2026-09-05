@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, ActivityIndicator, KeyboardAvoidingView, Platform,
+  TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Image,
 } from 'react-native';
+import { launchImageLibrary } from 'react-native-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showAlert } from '../../components/AppAlert';
 import { reportService } from '../../services/reportService';
 import { DailyReport } from '../../types';
-import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
+import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS, PHOTO_CATEGORIES } from '../../constants';
 import { haptics } from '../../utils/haptics';
 import { apiErrorMessage } from '../../utils/apiError';
 import ReportFiguresForm, {
@@ -31,6 +32,7 @@ export default function EditDraftScreen({ route, navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [filing, setFiling] = useState(false);
+  const [uploading, setUploading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const applyDraft = (d: DailyReport) => {
@@ -48,6 +50,45 @@ export default function EditDraftScreen({ route, navigation }: any) {
 
   const set = (section: FigureSection, key: string, value: number) =>
     setForm(prev => ({ ...prev, [section]: { ...prev[section], [key]: value } }));
+
+  const photos = (draft?.photos ?? {}) as Record<string, string>;
+
+  /**
+   * Fills a photo the staff member never got in. Gallery rather than camera —
+   * the day being documented has already passed — and the upload is tagged with
+   * that day, not today.
+   */
+  const pickPhoto = async (category: string) => {
+    if (photos[category]) return; // theirs, and not ours to replace
+    haptics.light();
+    try {
+      const result = await launchImageLibrary({
+        mediaType: 'photo', quality: 0.7, maxWidth: 1600, maxHeight: 1600, selectionLimit: 1,
+      });
+      if (result.didCancel) return;
+      if (result.errorCode) {
+        showAlert('Could Not Open Gallery', result.errorMessage || 'Check photo permissions in Settings.');
+        return;
+      }
+      const asset = result.assets?.[0];
+      if (!asset?.uri) return;
+
+      setUploading(category);
+      const url = await reportService.uploadPhoto(
+        asset.uri,
+        category,
+        draft?.stallName || 'Chaisto',
+        { date: draft?.date, source: 'gallery' },
+      );
+      applyDraft(await reportService.addDraftPhoto(draftId, category, url));
+      haptics.success();
+    } catch (err: any) {
+      haptics.error();
+      setError(apiErrorMessage(err, 'Could not add the photo.'));
+    } finally {
+      setUploading(null);
+    }
+  };
 
   const changedFields = changedFigureFields(original, form);
   const busy = saving || filing;
@@ -108,12 +149,21 @@ export default function EditDraftScreen({ route, navigation }: any) {
     const pending = changedFields.length > 0
       ? '\n\nYour unsaved edits are not included — save them first if you want them filed.'
       : '';
+    // Filing without the day's photos is allowed, but it should be a decision
+    // rather than something noticed afterwards
+    const missing = PHOTO_CATEGORIES
+      .filter((c) => c.required && !photos[c.key])
+      .map((c) => c.label);
+    const missingNote = missing.length
+      ? `\n\nNo ${missing.join(', ')} on this report. You can add photos above before filing.`
+      : '';
     showAlert({
       title: 'File this as a report?',
       message:
         `${draft?.staffName} · ${draft?.date}\n\n` +
         'The draft becomes a submitted report on record and is no longer editable by the staff member. ' +
-        'Only photos already uploaded with the draft carry over, and it is recorded as filed by you.' +
+        'It is recorded as filed by you.' +
+        missingNote +
         pending,
       type: 'confirm',
       buttons: [
@@ -185,6 +235,48 @@ export default function EditDraftScreen({ route, navigation }: any) {
             ))}
           </View>
         )}
+
+        <Text style={styles.sectionTitle}>PHOTOS</Text>
+        <Text style={styles.photoIntro}>
+          Photos {draft.staffName} already took cannot be changed. Any they never got in can be
+          added from your gallery, and will be filed with the report.
+        </Text>
+        <View style={styles.photoCard}>
+          {PHOTO_CATEGORIES.map((cat) => {
+            const url = photos[cat.key];
+            const busy = uploading === cat.key;
+            return (
+              <TouchableOpacity
+                key={cat.key}
+                style={styles.photoRow}
+                onPress={() => pickPhoto(cat.key)}
+                disabled={busy || !!url}
+                activeOpacity={0.8}
+              >
+                {url ? (
+                  <Image source={{ uri: url }} style={styles.photoThumb} resizeMode="cover" />
+                ) : (
+                  <View style={styles.photoPlaceholder}>
+                    {busy
+                      ? <ActivityIndicator size="small" color={COLORS.primary} />
+                      : <Text style={{ fontSize: 18 }}>🖼</Text>}
+                  </View>
+                )}
+                <View style={{ flex: 1, marginLeft: SPACING.md }}>
+                  <Text style={styles.photoLabel}>
+                    {cat.label}{cat.required ? '' : ' (optional)'}
+                  </Text>
+                  <Text style={styles.photoSub}>
+                    {busy ? 'Uploading…'
+                      : url ? 'Taken by staff · locked'
+                      : 'Missing · tap to add from gallery'}
+                  </Text>
+                </View>
+                {!!url && <Text style={styles.photoTick}>✓</Text>}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
         <ReportFiguresForm values={form} onChange={set} />
 
@@ -262,6 +354,29 @@ const styles = StyleSheet.create({
     letterSpacing: 1, marginBottom: SPACING.sm,
   },
   flagLine: { fontSize: FONT_SIZE.sm, color: COLORS.dark, lineHeight: 20 },
+
+  photoIntro: {
+    fontSize: FONT_SIZE.xs, color: COLORS.muted,
+    lineHeight: 17, marginBottom: SPACING.md,
+  },
+  photoCard: {
+    backgroundColor: COLORS.white, borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1, borderColor: COLORS.border, ...SHADOWS.sm,
+    paddingHorizontal: SPACING.md,
+  },
+  photoRow: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: SPACING.md,
+    borderBottomWidth: 1, borderBottomColor: COLORS.borderLight,
+  },
+  photoThumb: { width: 44, height: 44, borderRadius: BORDER_RADIUS.sm },
+  photoPlaceholder: {
+    width: 44, height: 44, borderRadius: BORDER_RADIUS.sm,
+    backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: COLORS.border, borderStyle: 'dashed',
+  },
+  photoLabel: { fontSize: FONT_SIZE.sm, fontWeight: '700', color: COLORS.black },
+  photoSub: { fontSize: FONT_SIZE.xs, color: COLORS.muted, marginTop: 1 },
+  photoTick: { fontSize: FONT_SIZE.md, color: COLORS.success, fontWeight: '800' },
 
   sectionTitle: {
     fontSize: 11, fontWeight: '700', color: COLORS.muted, letterSpacing: 1.5,
