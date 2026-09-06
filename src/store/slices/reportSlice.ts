@@ -32,11 +32,17 @@ const blankDraft = ({ staffId, stallId }: { staffId: string; stallId: string; st
   status: 'draft',
   flags: [],
   photos: { cash: '', stock: '', milkPacket: '', cartClosing: '' },
-  openingStock: { milk: 0, sugar: 0, teaLeaves: 0, cups: 0, kulhadCups: 0, vegMomoPackets: 0, paneerMomoPackets: 0 },
-  purchases: { milk: 0, snacks: 0, cigarettes: 0, vegMomoPackets: 0, paneerMomoPackets: 0 },
-  sales: { regularCups: 0, specialCups: 0, kulhadCups: 0, vegMomoPackets: 0, paneerMomoPackets: 0, snacks: 0, cigarettes: 0 },
+  openingStock: { milk: 0, sugar: 0, teaLeaves: 0, cups: 0, kulhadCups: 0, vegMomoPackets: 0, paneerMomoPackets: 0, springRolls: 0, maggi: 0 },
+  purchases: { milk: 0, snacks: 0, cigarettes: 0, vegMomoPackets: 0, paneerMomoPackets: 0, springRolls: 0, maggi: 0 },
+  sales: {
+    regularCups: 0, specialCups: 0, kulhadCups: 0,
+    vegMomoPackets: 0, paneerMomoPackets: 0,
+    friedVegMomoPackets: 0, friedPaneerMomoPackets: 0,
+    springRolls: 0, maggi: 0,
+    snacks: 0, cigarettes: 0,
+  },
   payments: { upi: 0, cash: 0 },
-  closingStock: { milk: 0, sugar: 0, teaLeaves: 0, cups: 0, kulhadCups: 0, vegMomoPackets: 0, paneerMomoPackets: 0 },
+  closingStock: { milk: 0, sugar: 0, teaLeaves: 0, cups: 0, kulhadCups: 0, vegMomoPackets: 0, paneerMomoPackets: 0, springRolls: 0, maggi: 0 },
 });
 
 const initialState: ReportState = {

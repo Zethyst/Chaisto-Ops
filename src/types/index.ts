@@ -66,6 +66,8 @@ export interface DailyReport {
     kulhadCups: number;  // kulhad cup count
     vegMomoPackets: number;
     paneerMomoPackets: number;
+    springRolls?: number;
+    maggi?: number;
   };
 
   purchases: {
@@ -74,6 +76,8 @@ export interface DailyReport {
     cigarettes?: number; // ₹ — absent on reports filed before it was tracked
     vegMomoPackets: number;
     paneerMomoPackets: number;
+    springRolls?: number;
+    maggi?: number;
   };
 
   sales: {
@@ -82,6 +86,13 @@ export interface DailyReport {
     kulhadCups: number;
     vegMomoPackets: number;
     paneerMomoPackets: number;
+    // Fried momos come out of the same stock as the steamed ones, so they are
+    // counted in the same plate-equivalents but priced on their own
+    friedVegMomoPackets?: number;
+    friedPaneerMomoPackets?: number;
+    // Counted per plate with their own price; no stock of their own
+    springRolls?: number;
+    maggi?: number;
     snacks: number;      // ₹
     cigarettes?: number; // ₹ — absent on reports filed before it was tracked
   };
@@ -99,6 +110,8 @@ export interface DailyReport {
     kulhadCups: number;
     vegMomoPackets: number;
     paneerMomoPackets: number;
+    springRolls?: number;
+    maggi?: number;
   };
 
   // Absent on reports an admin backfilled for a past day
@@ -202,7 +215,8 @@ export interface Expense {
   stallId: string;
   loggedBy: string;
   loggedByName: string;
-  category: 'gas' | 'supplies' | 'maintenance' | 'equipment' | 'other';
+  category: 'gas' | 'supplies' | 'maintenance' | 'equipment'
+    | 'momos' | 'milk' | 'rolls' | 'water' | 'other';
   amount: number;
   description?: string;
   date: string;

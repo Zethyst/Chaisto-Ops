@@ -15,10 +15,12 @@ import { useDraftAutosave } from './useDraftAutosave';
 
 import { deviceService } from '../../services/deviceService';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS, REPORT_STEPS, PHOTO_CATEGORIES, REQUIRED_PHOTO_CATEGORIES } from '../../constants';
-import { ITEM_KEY_TO_SALES_FIELD, MOMO_ITEM_KEYS, pricePerStockUnit } from '../../store/slices/menuSlice';
+import { ITEM_KEY_TO_SALES_FIELD, MOMO_ITEM_KEYS, isCupItem, pricePerStockUnit } from '../../store/slices/menuSlice';
 import { useSupplyUnits } from './useSupplyUnits';
 import { DailyReport } from '../../types';
 import { haptics } from '../../utils/haptics';
+import { qty } from '../../utils/number';
+import { momoPlatesSold, snackPlatesSold } from '../../utils/reportTotals';
 
 const STEP_ICONS = ['📦', '🛒', '☕', '💳', '📊', '📸', '✓'];
 
@@ -271,6 +273,8 @@ function OpeningStockStep({ draft, dispatch }: any) {
         factor={momoPiecesPerPlateFactor}
         unit="pieces"
       />
+      <NumberField label="Spring rolls" value={s.springRolls || 0} onChange={(v: number) => update('springRolls', v)} unit="plates" />
+      <NumberField label="Maggi" value={s.maggi || 0} onChange={(v: number) => update('maggi', v)} unit="plates" />
     </StepCard>
   );
 }
@@ -306,6 +310,8 @@ function PurchasesStep({ draft, dispatch }: any) {
         unit="pieces"
         hint="Leave 0 if none"
       />
+      <NumberField label="Spring rolls purchased" value={p.springRolls || 0} onChange={(v: number) => update('springRolls', v)} unit="plates" hint="Leave 0 if none" />
+      <NumberField label="Maggi purchased" value={p.maggi || 0} onChange={(v: number) => update('maggi', v)} unit="plates" hint="Leave 0 if none" />
       <NumberField label="Snacks purchased" value={p.snacks} onChange={(v: number) => update('snacks', v)} unit="₹" hint="Total cost of snacks bought" />
       <NumberField label="Cigarettes purchased" value={p.cigarettes} onChange={(v: number) => update('cigarettes', v)} unit="₹" hint="Total cost of cigarette stock bought" />
     </StepCard>
@@ -358,14 +364,15 @@ function SalesStep({ draft, dispatch }: any) {
             label={item.name}
             value={s[field] || 0}
             onChange={(v: number) => update(field, v)}
-            unit="cups"
+            // A spring roll is served on a plate, not in a cup
+            unit={isCupItem(item.key) ? 'cups' : 'plates'}
           />
         );
       })}
       <NumberField label="Snacks sold" value={s.snacks} onChange={(v: number) => update('snacks', v)} unit="₹" hint="Total snack sales in ₹" />
       <NumberField label="Cigarettes sold" value={s.cigarettes} onChange={(v: number) => update('cigarettes', v)} unit="₹" hint="Total cigarette sales in ₹" />
       <View style={stepStyles.estimate}>
-        <Text style={stepStyles.estimateLabel}>Estimated revenue from cups</Text>
+        <Text style={stepStyles.estimateLabel}>Estimated revenue from items sold</Text>
         <Text style={stepStyles.estimateValue}>₹{Math.round(estimatedRevenue)}</Text>
         <Text style={stepStyles.estimateSub}>{priceLine}</Text>
       </View>
@@ -438,6 +445,8 @@ function ClosingStockStep({ draft, dispatch }: any) {
         factor={momoPiecesPerPlateFactor}
         unit="pieces"
       />
+      <NumberField label="Spring rolls remaining" value={s.springRolls || 0} onChange={(v: number) => update('springRolls', v)} unit="plates" />
+      <NumberField label="Maggi remaining" value={s.maggi || 0} onChange={(v: number) => update('maggi', v)} unit="plates" />
     </StepCard>
   );
 }
@@ -479,7 +488,10 @@ function PhotosStep({ draft, navigation }: any) {
 
 function ReviewStep({ draft }: any) {
   const cups = (draft.sales?.regularCups || 0) + (draft.sales?.specialCups || 0) + (draft.sales?.kulhadCups || 0);
-  const momoPlates = (draft.sales?.vegMomoPackets || 0) + (draft.sales?.paneerMomoPackets || 0);
+  // Fried plates are momos too, and the staff member is checking the day's
+  // total before submitting
+  const momoPlates = momoPlatesSold(draft.sales);
+  const snackPlates = snackPlatesSold(draft.sales);
   const revenue = (draft.payments?.upi || 0) + (draft.payments?.cash || 0);
   const flags = draft.flags || [];
   const { milkPacketsPerLitre, momoPiecesPerPlateFactor } = useSupplyUnits();
@@ -500,6 +512,9 @@ function ReviewStep({ draft }: any) {
       <View style={stepStyles.reviewCard}>
         <ReviewRow label="Cups sold" value={`${cups} cups`} />
         <ReviewRow label="Momos sold" value={`${Math.round(momoPlates * momoPiecesPerPlateFactor)} pieces`} />
+        {snackPlates > 0 && (
+          <ReviewRow label="Spring roll / maggi" value={`${qty(snackPlates)} plates`} />
+        )}
         <ReviewRow label="Cigarettes sold" value={`₹${draft.sales?.cigarettes || 0}`} />
         <ReviewRow label="Total revenue" value={`₹${revenue}`} />
         <ReviewRow label="UPI" value={`₹${draft.payments?.upi || 0}`} />

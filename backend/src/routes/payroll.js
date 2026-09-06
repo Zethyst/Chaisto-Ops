@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Attendance = require('../models/Attendance');
 const StallConfig = require('../models/StallConfig');
 const { allRoles, adminOrModerator } = require('../middleware/auth');
+const { momoPlatesExpr } = require('../utils/salesTotals');
 
 const router = express.Router();
 
@@ -37,7 +38,7 @@ router.get('/me', ...allRoles, async (req, res) => {
         $group: {
           _id: null,
           totalCups: { $sum: { $add: ['$sales.regularCups', '$sales.specialCups'] } },
-          totalMomoPackets: { $sum: { $add: ['$sales.vegMomoPackets', '$sales.paneerMomoPackets'] } },
+          totalMomoPackets: { $sum: momoPlatesExpr() },
           totalRevenue: { $sum: '$computed.totalRevenue' },
           reportCount: { $sum: 1 },
         },
@@ -123,7 +124,7 @@ router.get('/', ...adminOrModerator, async (req, res) => {
         $group: {
           _id: '$staffId',
           totalCups: { $sum: { $add: ['$sales.regularCups', '$sales.specialCups'] } },
-          totalMomoPackets: { $sum: { $add: ['$sales.vegMomoPackets', '$sales.paneerMomoPackets'] } },
+          totalMomoPackets: { $sum: momoPlatesExpr() },
           totalRevenue: { $sum: '$computed.totalRevenue' },
           reportCount: { $sum: 1 },
         },

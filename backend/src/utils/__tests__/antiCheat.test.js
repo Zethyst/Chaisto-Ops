@@ -20,6 +20,43 @@ function flagTypes(result) {
   return result.flags.map((f) => f.type);
 }
 
+describe('fried momos', () => {
+  it('does not read a fried plate as stock that walked off', () => {
+    // Same twelve plates out of the same stock, half of them fried to order.
+    // Counting only the steamed ones would show 6 sold against 12 missing.
+    const result = computeAntiCheatMetrics(baseline({
+      sales: {
+        regularCups: 30, specialCups: 0, kulhadCups: 0,
+        vegMomoPackets: 3, paneerMomoPackets: 3,
+        friedVegMomoPackets: 3, friedPaneerMomoPackets: 3,
+        snacks: 0,
+      },
+    }));
+
+    expect(flagTypes(result)).not.toContain('momo_stock_mismatch');
+    expect(result.computed.totalMomoPackets).toBe(12);
+  });
+
+  it('still catches stock going missing when fried plates are counted', () => {
+    const result = computeAntiCheatMetrics(baseline({
+      sales: {
+        regularCups: 30, specialCups: 0, kulhadCups: 0,
+        vegMomoPackets: 1, paneerMomoPackets: 1,
+        friedVegMomoPackets: 1, friedPaneerMomoPackets: 1,
+        snacks: 0,
+      },
+    }));
+
+    // Twelve plates left the stock, four were sold
+    expect(flagTypes(result)).toContain('momo_stock_mismatch');
+  });
+
+  it('reads a report filed before fried momos existed', () => {
+    const result = computeAntiCheatMetrics(baseline());
+    expect(result.computed.totalMomoPackets).toBe(12);
+  });
+});
+
 describe('computeAntiCheatMetrics — baseline / happy path', () => {
   it('produces no flags and status "submitted" when everything reconciles', () => {
     const result = computeAntiCheatMetrics(baseline());

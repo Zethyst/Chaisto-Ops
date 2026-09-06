@@ -114,4 +114,15 @@ describe('auth header', () => {
     const config = await mockRequestHandlers[0]({ headers: {} });
     expect(config.headers.Authorization).toBe('Bearer jwt-token');
   });
+
+  it('leaves a token the caller supplied alone', async () => {
+    // Binding a device during login sends the token login just returned; the
+    // keychain still holds the previous session's, and using that failed the
+    // login with "session expired"
+    createApiClient();
+    const config = await mockRequestHandlers[0]({
+      headers: { Authorization: 'Bearer fresh-login-token' },
+    });
+    expect(config.headers.Authorization).toBe('Bearer fresh-login-token');
+  });
 });

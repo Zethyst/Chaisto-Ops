@@ -13,6 +13,7 @@ import { notificationService } from '../../services/notificationService';
 import { aiService } from '../../services/aiService';
 import { fetchMenuConfig } from '../../store/slices/menuSlice';
 import { haptics } from '../../utils/haptics';
+import { qty } from '../../utils/number';
 import { useLanguage } from '../../i18n';
 import BrandedLogoMark from '../../components/BrandedLogoMark';
 
@@ -424,7 +425,7 @@ export default function AdminDashboard({ navigation }: any) {
                     </Text>
                     <View style={styles.leaderInfo}>
                       <Text style={styles.leaderName}>{staff.name}</Text>
-                      <Text style={styles.leaderSub}>{staff.cups} cups · {staff.momoPackets || 0} momos · {staff.reports} reports</Text>
+                      <Text style={styles.leaderSub}>{staff.cups} cups · {qty(staff.momoPackets)} momos · {staff.reports} reports</Text>
                     </View>
                     <Text style={styles.leaderRevenue}>
                       ₹{Math.round(staff.revenue).toLocaleString('en-IN')}

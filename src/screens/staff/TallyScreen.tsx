@@ -10,7 +10,7 @@ import {
   ensureFreshTally, incrementTally, decrementTally,
   incrementMilkPackets, decrementMilkPackets,
   setTallyUpi, setTallyCash, setTallyNotes, setTallyCigarettes, resetTally,
-  fetchMenuConfig, MOMO_ITEM_KEYS, getSellableUnits,
+  fetchMenuConfig, MOMO_ITEM_KEYS, PLATE_SNACK_ITEM_KEYS, isCupItem, getSellableUnits,
   servingsForItem, revenueForItem,
 } from '../../store/slices/menuSlice';
 import { resumeOrStartReport, preFillFromTally } from '../../store/slices/reportSlice';
@@ -18,6 +18,7 @@ import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../consta
 import { haptics } from '../../utils/haptics';
 import { showAlert } from '../../components/AppAlert';
 import BufferedTextInput from '../../components/BufferedTextInput';
+import { qty } from '../../utils/number';
 import { useLanguage } from '../../i18n';
 
 // ─── Animated counter button ──────────────────────────────────────────────────
@@ -179,11 +180,18 @@ export default function TallyScreen({ navigation }: any) {
 
   // Portioned items (half / full plate) contribute one counter per serving, so
   // totals sum across every sellable unit rather than a single per-item count.
-  const totalCups = activeItems
-    .filter(item => !MOMO_ITEM_KEYS.includes(item.key))
+  // Three kinds of thing are sold: chai by the cup, momos by the plate against
+  // stock, and plate snacks that carry no stock. A spring roll is not a cup, so
+  // it must not land in the cup count the incentive and milk checks read.
+  const cupItems = activeItems.filter(item => isCupItem(item.key));
+  const momoItems = activeItems.filter(item => MOMO_ITEM_KEYS.includes(item.key));
+  const snackItems = activeItems.filter(item => PLATE_SNACK_ITEM_KEYS.includes(item.key));
+
+  const totalCups = cupItems
     .reduce((sum, item) => sum + servingsForItem(item, tally.counters), 0);
-  const totalMomoPlates = activeItems
-    .filter(item => MOMO_ITEM_KEYS.includes(item.key))
+  const totalMomoPlates = momoItems
+    .reduce((sum, item) => sum + servingsForItem(item, tally.counters), 0);
+  const totalSnackPlates = snackItems
     .reduce((sum, item) => sum + servingsForItem(item, tally.counters), 0);
   const cigaretteSales = tally.cigarettes || 0;
   const totalRevenue = activeItems.reduce((sum, item) => sum + revenueForItem(item, tally.counters), 0)
@@ -192,11 +200,23 @@ export default function TallyScreen({ navigation }: any) {
   const milkCost = tally.milkPackets * milkCostPerPacket;
   const milkLitres = ((tally.milkPackets * milkMlPerPacket) / 1000).toFixed(1);
 
+  // Built as a list so a new kind of item is one more line rather than another
+  // pair of conditional separators
+  const ctaSummary = [
+    totalCups > 0 && `${totalCups} cups`,
+    totalMomoPlates > 0 && `${qty(totalMomoPlates)} momo plates`,
+    totalSnackPlates > 0 && `${qty(totalSnackPlates)} plates`,
+    cigaretteSales > 0 && `🚬 ₹${cigaretteSales}`,
+    totalRevenue > 0 && `₹${totalRevenue} est`,
+    milkCost > 0 && `🥛 ${tally.milkPackets}pkt ₹${milkCost} exp`,
+    totalPayments > 0 && `₹${totalPayments} collected`,
+  ].filter(Boolean).join(' · ');
+
   const dateStr = new Date().toLocaleDateString('en-IN', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
 
-  const hasTallyData = totalCups > 0 || totalMomoPlates > 0 || cigaretteSales > 0
+  const hasTallyData = totalCups > 0 || totalMomoPlates > 0 || totalSnackPlates > 0 || cigaretteSales > 0
     || tally.upi > 0 || tally.cash > 0 || tally.milkPackets > 0;
 
   const handleReset = () => {
@@ -278,9 +298,18 @@ export default function TallyScreen({ navigation }: any) {
         </View>
         <View style={styles.totalDivider} />
         <View style={styles.totalItem}>
-          <Text style={styles.totalValue}>{totalMomoPlates}</Text>
+          <Text style={styles.totalValue}>{qty(totalMomoPlates)}</Text>
           <Text style={styles.totalLabel}>{t('tallyMomosLabel')}</Text>
         </View>
+        {totalSnackPlates > 0 && (
+          <>
+            <View style={styles.totalDivider} />
+            <View style={styles.totalItem}>
+              <Text style={styles.totalValue}>{qty(totalSnackPlates)}</Text>
+              <Text style={styles.totalLabel}>PLATES</Text>
+            </View>
+          </>
+        )}
         <View style={styles.totalDivider} />
         <View style={styles.totalItem}>
           <Text style={[styles.totalValue, { color: COLORS.success }]}>
@@ -315,7 +344,7 @@ export default function TallyScreen({ navigation }: any) {
             item={item}
             units={getSellableUnits(item)}
             counters={tally.counters}
-            unitLabel={MOMO_ITEM_KEYS.includes(item.key) ? t('tallyPerPacket') : t('tallyPerCup')}
+            unitLabel={isCupItem(item.key) ? t('tallyPerCup') : t('tallyPerPacket')}
             onPressRecipe={() => setRecipeModal({ name: item.name, recipe: item.recipe || '' })}
             onIncrement={(key: string) => {
               haptics.selection();
@@ -519,17 +548,7 @@ export default function TallyScreen({ navigation }: any) {
       <View style={[styles.ctaBar, { paddingBottom: insets.bottom + SPACING.md }]}>
         {(totalRevenue > 0 || milkCost > 0) && (
           <View style={styles.ctaSummary}>
-            <Text style={styles.ctaSummaryText}>
-              {totalCups > 0 ? `${totalCups} cups` : ''}
-              {totalCups > 0 && totalMomoPlates > 0 ? ' · ' : ''}
-              {totalMomoPlates > 0 ? `${totalMomoPlates} momo plates` : ''}
-              {(totalCups > 0 || totalMomoPlates > 0) && cigaretteSales > 0 ? ' · ' : ''}
-              {cigaretteSales > 0 ? `🚬 ₹${cigaretteSales}` : ''}
-              {(totalCups > 0 || totalMomoPlates > 0 || cigaretteSales > 0) ? ` · ₹${totalRevenue} est` : ''}
-              {(totalCups > 0 || totalMomoPlates > 0 || cigaretteSales > 0) && milkCost > 0 ? ' · ' : ''}
-              {milkCost > 0 ? `🥛 ${tally.milkPackets}pkt ₹${milkCost} exp` : ''}
-              {totalPayments > 0 ? ` · ₹${totalPayments} collected` : ''}
-            </Text>
+            <Text style={styles.ctaSummaryText}>{ctaSummary}</Text>
           </View>
         )}
         <TouchableOpacity

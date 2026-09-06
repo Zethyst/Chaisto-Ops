@@ -22,10 +22,26 @@ export const DEFAULT_MENU_ITEMS: MenuItem[] = [
   { key: 'kulhadChai', name: 'Kulhad Chai', price: 20, active: true, sortOrder: 2, isDefault: true },
   { key: 'vegMomo', name: 'Veg Momo', price: 40, active: true, sortOrder: 3, isDefault: true, portions: defaultPortionsForPrice(40) },
   { key: 'paneerMomo', name: 'Paneer Momo', price: 60, active: true, sortOrder: 4, isDefault: true, portions: defaultPortionsForPrice(60) },
+  // Fried momos are the same momos, fried to order, so they come out of the
+  // same stock and are counted in the same plate-equivalents
+  { key: 'friedVegMomo', name: 'Fried Veg Momo', price: 50, active: true, sortOrder: 5, isDefault: true, portions: defaultPortionsForPrice(50) },
+  { key: 'friedPaneerMomo', name: 'Fried Paneer Momo', price: 70, active: true, sortOrder: 6, isDefault: true, portions: defaultPortionsForPrice(70) },
+  { key: 'springRoll', name: 'Spring Roll', price: 40, active: true, sortOrder: 7, isDefault: true },
+  { key: 'maggi', name: 'Maggi', price: 30, active: true, sortOrder: 8, isDefault: true },
 ];
 
-// Momo menu item keys are sold by the packet, not the cup
-export const MOMO_ITEM_KEYS = ['vegMomo', 'paneerMomo'];
+// Sold by the plate rather than the cup, and reconciled against momo stock.
+// Fried momos belong here: frying does not create a momo, so a fried plate
+// leaves the same hole in the day's stock as a steamed one.
+export const MOMO_ITEM_KEYS = ['vegMomo', 'paneerMomo', 'friedVegMomo', 'friedPaneerMomo'];
+
+// Plate-served food that is not a momo: counted per plate with its own price,
+// but carrying no stock of its own, so it stays out of stock reconciliation.
+export const PLATE_SNACK_ITEM_KEYS = ['springRoll', 'maggi'];
+
+/** Chai and anything else measured in cups — everything the other two lists leave. */
+export const isCupItem = (key: string): boolean =>
+  !MOMO_ITEM_KEYS.includes(key) && !PLATE_SNACK_ITEM_KEYS.includes(key);
 
 // Milk is bought in packets; both values are admin-configurable per stall.
 export const DEFAULT_MILK_COST_PER_PACKET = 30;
@@ -82,6 +98,10 @@ export const ITEM_KEY_TO_SALES_FIELD: Record<string, string> = {
   kulhadChai: 'kulhadCups',
   vegMomo: 'vegMomoPackets',
   paneerMomo: 'paneerMomoPackets',
+  friedVegMomo: 'friedVegMomoPackets',
+  friedPaneerMomo: 'friedPaneerMomoPackets',
+  springRoll: 'springRolls',
+  maggi: 'maggi',
 };
 
 export interface TallyData {
@@ -206,6 +226,30 @@ const applySupplyUnits = (state: MenuState, cfg: any) => {
   if (typeof cfg?.momoPiecesPerPlate === 'number') state.momoPiecesPerPlate = cfg.momoPiecesPerPlate;
 };
 
+/**
+ * Brings a stall's saved menu up to date with items added since it was saved.
+ *
+ * A stall that has ever edited its menu has a stored list, and that list wins
+ * over the defaults — so without this, an item added to the app never reaches a
+ * stall that is already running, and the new counters simply never appear.
+ *
+ * Only genuinely new keys are added. A default the admin switched off is still
+ * in the stored list (defaults can be deactivated but never deleted), so a
+ * missing key always means "never seen", never "removed on purpose", and their
+ * own prices and names are left untouched.
+ */
+export function withNewDefaults(stored: MenuItem[]): MenuItem[] {
+  const known = new Set(stored.map((i) => i.key));
+  const additions = DEFAULT_MENU_ITEMS.filter((d) => !known.has(d.key));
+  if (!additions.length) return stored;
+
+  const lastSort = stored.reduce((max, i) => Math.max(max, i.sortOrder ?? 0), 0);
+  return [
+    ...stored,
+    ...additions.map((item, i) => ({ ...item, sortOrder: lastSort + 1 + i })),
+  ];
+}
+
 const menuSlice = createSlice({
   name: 'menu',
   initialState,
@@ -328,7 +372,7 @@ const menuSlice = createSlice({
       .addCase(fetchMenuConfig.fulfilled, (state, action) => {
         const cfg = action.payload as any;
         if (cfg?.menuItems?.length > 0) {
-          state.items = normalizeMenuItems(cfg.menuItems);
+          state.items = withNewDefaults(normalizeMenuItems(cfg.menuItems));
         }
         applySupplyUnits(state, cfg);
         state.isLoaded = true;
@@ -337,7 +381,7 @@ const menuSlice = createSlice({
       .addCase(saveMenuItems.fulfilled, (state, action) => {
         state.isSaving = false;
         const cfg = action.payload as any;
-        if (cfg?.menuItems?.length > 0) state.items = normalizeMenuItems(cfg.menuItems);
+        if (cfg?.menuItems?.length > 0) state.items = withNewDefaults(normalizeMenuItems(cfg.menuItems));
         applySupplyUnits(state, cfg);
       })
       .addCase(saveMenuItems.rejected, (state) => { state.isSaving = false; });

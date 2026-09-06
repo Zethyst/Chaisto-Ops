@@ -25,6 +25,7 @@ const ACTION_META: Record<string, { icon: string; color: string; label: string }
   config_changed: { icon: '⚙️', color: COLORS.info, label: 'Config Changed' },
   attendance_marked: { icon: '📅', color: COLORS.info, label: 'Attendance Marked' },
   expense_deleted: { icon: '💸', color: COLORS.danger, label: 'Expense Deleted' },
+  expense_edited: { icon: '💸', color: COLORS.warning, label: 'Expense Edited' },
   stall_created: { icon: '🏪', color: COLORS.success, label: 'Stall Created' },
   stall_updated: { icon: '🏪', color: COLORS.warning, label: 'Stall Updated' },
   inventory_updated: { icon: '📦', color: COLORS.primary, label: 'Inventory Updated' },

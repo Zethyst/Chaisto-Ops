@@ -39,6 +39,12 @@ export function createApiClient({ timeout = API_CONFIG.TIMEOUT }: { timeout?: nu
   });
 
   api.interceptors.request.use(async (config) => {
+    // A caller that set its own Authorization meant it. Binding a device during
+    // login sends the token that login just returned, which is not in the
+    // keychain yet — overwriting it with the one still stored there sent the
+    // previous session's expired token and failed the login outright.
+    if (config.headers?.Authorization) return config;
+
     const token = await getStoredToken();
     if (token) config.headers.Authorization = `Bearer ${token}`;
     return config;

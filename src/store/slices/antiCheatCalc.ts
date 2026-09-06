@@ -1,5 +1,6 @@
 import { DailyReport, SuspicionFlag } from '../../types';
 import { BREW_CONSTANTS } from '../../constants/brew';
+import { qty } from '../../utils/number';
 
 // Pure anti-cheat computation engine — deliberately has zero React Native or
 // service imports so it stays unit-testable without mocking native modules.
@@ -14,7 +15,10 @@ export function computeReportMetrics(report: Partial<DailyReport>): {
   const flags: SuspicionFlag[] = [];
 
   const totalCups = (sales?.regularCups || 0) + (sales?.specialCups || 0) + (sales?.kulhadCups || 0);
-  const totalMomoPackets = (sales?.vegMomoPackets || 0) + (sales?.paneerMomoPackets || 0);
+  // Fried momos come out of the same stock as the steamed ones, so a fried
+  // plate counts against the same opening/closing count
+  const totalMomoPackets = (sales?.vegMomoPackets || 0) + (sales?.paneerMomoPackets || 0)
+    + (sales?.friedVegMomoPackets || 0) + (sales?.friedPaneerMomoPackets || 0);
   const milkUsed = (openingStock?.milk || 0) + (purchases?.milk || 0) - (closingStock?.milk || 0);
   const expectedCupsFromMilk = milkUsed * BREW_CONSTANTS.CUPS_PER_LITRE;
   const momoOpening = (openingStock?.vegMomoPackets || 0) + (openingStock?.paneerMomoPackets || 0);
@@ -52,7 +56,7 @@ export function computeReportMetrics(report: Partial<DailyReport>): {
       flags.push({
         type: 'momo_stock_mismatch',
         severity: momoDeviation > 0.45 ? 'high' : 'medium',
-        message: `${totalMomoPackets} momo plates reported but stock suggests ~${Math.round(expectedMomoFromStock)} plates`,
+        message: `${qty(totalMomoPackets)} momo plates reported but stock suggests ~${Math.round(expectedMomoFromStock)} plates`,
         value: totalMomoPackets,
         expectedValue: Math.round(expectedMomoFromStock),
       });

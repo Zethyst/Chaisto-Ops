@@ -15,6 +15,10 @@ const stockSchema = new mongoose.Schema({
   kulhadCups: { type: Number, default: 0, min: 0 },   // kulhad cup count
   vegMomoPackets: { type: Number, default: 0, min: 0 },
   paneerMomoPackets: { type: Number, default: 0, min: 0 },
+  // Counted per plate, like momos, and carried in opening and closing stock so
+  // what was bought in can be reconciled against what was sold
+  springRolls: { type: Number, default: 0, min: 0 },
+  maggi: { type: Number, default: 0, min: 0 },
 }, { _id: false });
 
 const flagSchema = new mongoose.Schema({
@@ -42,6 +46,8 @@ const reportSchema = new mongoose.Schema({
     cigarettes: { type: Number, default: 0, min: 0 }, // ₹
     vegMomoPackets: { type: Number, default: 0, min: 0 },
     paneerMomoPackets: { type: Number, default: 0, min: 0 },
+    springRolls: { type: Number, default: 0, min: 0 },
+    maggi: { type: Number, default: 0, min: 0 },
   },
   sales: {
     regularCups: { type: Number, default: 0, min: 0 },
@@ -49,6 +55,13 @@ const reportSchema = new mongoose.Schema({
     kulhadCups: { type: Number, default: 0, min: 0 },
     vegMomoPackets: { type: Number, default: 0, min: 0 },
     paneerMomoPackets: { type: Number, default: 0, min: 0 },
+    // Fried to order from the same stock as the steamed momos, so these are
+    // plate-equivalents against the same opening/closing count
+    friedVegMomoPackets: { type: Number, default: 0, min: 0 },
+    friedPaneerMomoPackets: { type: Number, default: 0, min: 0 },
+    // Counted per plate, priced from the menu, no stock of their own
+    springRolls: { type: Number, default: 0, min: 0 },
+    maggi: { type: Number, default: 0, min: 0 },
     snacks: { type: Number, default: 0, min: 0 },     // ₹
     cigarettes: { type: Number, default: 0, min: 0 }, // ₹
   },

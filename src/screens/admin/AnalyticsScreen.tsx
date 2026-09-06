@@ -6,6 +6,7 @@ import {
 import { LineChart, BarChart } from 'react-native-chart-kit';
 import { reportService } from '../../services/reportService';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
+import { qty } from '../../utils/number';
 import { haptics } from '../../utils/haptics';
 
 const { width } = Dimensions.get('window');
@@ -194,7 +195,7 @@ export default function AnalyticsScreen() {
                 </Text>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.staffName}>{staff.name}</Text>
-                  <Text style={styles.staffSub}>{staff.cups} cups · {staff.momoPackets || 0} momos · {staff.reports} reports</Text>
+                  <Text style={styles.staffSub}>{staff.cups} cups · {qty(staff.momoPackets)} momos · {staff.reports} reports</Text>
                 </View>
                 <Text style={styles.staffRevenue}>₹{Math.round(staff.revenue).toLocaleString('en-IN')}</Text>
               </View>

@@ -9,6 +9,7 @@ import { expenseService } from '../../services/expenseService';
 import { reportService } from '../../services/reportService';
 import { wastageService } from '../../services/wastageService';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
+import { expenseCategoryLabel } from '../../constants/expenseCategories';
 import { todayISO, currentMonthISO } from '../../utils/date';
 import { haptics } from '../../utils/haptics';
 
@@ -47,7 +48,10 @@ export default function PnLReportScreen() {
     setLoading(true);
     try {
       const [analytics, expList, wastageList] = await Promise.all([
-        reportService.getAnalytics({ days: 31 }),
+        // The selected month, not a rolling window — every month used to show
+        // the same revenue, cups and report count while the expenses beneath
+        // them changed
+        reportService.getAnalytics({ month }),
         expenseService.getExpenses({ month }),
         wastageService.getWastageLogs({ month }),
       ]);
@@ -140,7 +144,7 @@ export default function PnLReportScreen() {
 
             <Text style={styles.subheading}>Expenses</Text>
             {Object.entries(expenseBreakdown).map(([cat, amt]) => (
-              <PnLRow key={cat} label={`  ${cat.charAt(0).toUpperCase() + cat.slice(1)}`} value={-amt} color={COLORS.danger} />
+              <PnLRow key={cat} label={`  ${expenseCategoryLabel(cat)}`} value={-amt} color={COLORS.danger} />
             ))}
             {Object.keys(expenseBreakdown).length === 0 && (
               <Text style={styles.noData}>No expenses logged</Text>
@@ -171,8 +175,12 @@ function KpiCard({ label, value, icon, color }: any) {
   return (
     <View style={styles.kpiCard}>
       <Text style={{ fontSize: 20 }}>{icon}</Text>
-      <Text style={[styles.kpiValue, { color }]}>{value}</Text>
-      <Text style={styles.kpiLabel}>{label}</Text>
+      {/* A stall with a very large month should scale the figure down rather
+          than hyphenate it across lines */}
+      <Text style={[styles.kpiValue, { color }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+        {value}
+      </Text>
+      <Text style={styles.kpiLabel} numberOfLines={1}>{label}</Text>
     </View>
   );
 }
@@ -200,9 +208,17 @@ const styles = StyleSheet.create({
   headlineAmount: { fontSize: 44, fontWeight: '900', marginTop: 4 },
   headlineMargin: { fontSize: FONT_SIZE.sm, color: COLORS.medium, marginTop: 4 },
 
-  kpiRow: { flexDirection: 'row', paddingHorizontal: SPACING.xl, gap: SPACING.sm, marginBottom: SPACING.xl },
+  // Five tiles across a phone left each one about 60pt wide, so "₹18,555" broke
+  // across three lines and "Reports" lost its last letter. They wrap into rows
+  // of three instead, which fits the widest figure a stall produces.
+  kpiRow: {
+    flexDirection: 'row', flexWrap: 'wrap',
+    paddingHorizontal: SPACING.xl, gap: SPACING.sm, marginBottom: SPACING.xl,
+  },
   kpiCard: {
-    flex: 1, backgroundColor: COLORS.white, borderRadius: BORDER_RADIUS.md,
+    // Three per row, with the two gaps between them accounted for
+    flexGrow: 1, flexBasis: '30%', minWidth: 96,
+    backgroundColor: COLORS.white, borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border,
   },
   kpiValue: { fontSize: FONT_SIZE.lg, fontWeight: '800', marginTop: 4 },

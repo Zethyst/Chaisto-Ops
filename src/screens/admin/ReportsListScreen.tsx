@@ -10,6 +10,8 @@ import { DailyReport } from '../../types';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
 import { haptics } from '../../utils/haptics';
 import { toISODate } from '../../utils/date';
+import { qty } from '../../utils/number';
+import { momoPlatesSold } from '../../utils/reportTotals';
 
 const STATUS_FILTERS = ['All', 'Draft', 'Submitted', 'Reviewed', 'Flagged'] as const;
 type StatusFilter = typeof STATUS_FILTERS[number];
@@ -157,7 +159,7 @@ export default function ReportsListScreen({ navigation }: any) {
               <View style={styles.summaryDivider} />
               <SummaryItem
                 label="TOTAL MOMOS"
-                value={String(reports.reduce((s, r) => s + (r.sales?.vegMomoPackets || 0) + (r.sales?.paneerMomoPackets || 0), 0))}
+                value={qty(reports.reduce((s, r) => s + momoPlatesSold(r.sales), 0))}
                 color={COLORS.primary}
               />
               <View style={styles.summaryDivider} />
@@ -255,7 +257,7 @@ function SummaryItem({ label, value, color }: { label: string; value: string; co
 
 function ReportCard({ report, onPress }: { report: DailyReport; onPress: () => void }) {
   const cups = (report.sales?.regularCups || 0) + (report.sales?.specialCups || 0) + (report.sales?.kulhadCups || 0);
-  const momoPackets = (report.sales?.vegMomoPackets || 0) + (report.sales?.paneerMomoPackets || 0);
+  const momoPackets = momoPlatesSold(report.sales);
   const revenue = (report.payments?.upi || 0) + (report.payments?.cash || 0);
   const upiPct = revenue > 0 ? Math.round((report.payments?.upi / revenue) * 100) : 0;
   const flagCount = report.flags?.length || 0;
@@ -293,7 +295,7 @@ function ReportCard({ report, onPress }: { report: DailyReport; onPress: () => v
       {/* Metrics row */}
       <View style={styles.metricsRow}>
         <MetricChip icon="☕" value={`${cups} cups`} color={COLORS.primary} />
-        {momoPackets > 0 && <MetricChip icon="🥟" value={`${momoPackets} momos`} color={COLORS.primary} />}
+        {momoPackets > 0 && <MetricChip icon="🥟" value={`${qty(momoPackets)} momos`} color={COLORS.primary} />}
         <MetricChip icon="💰" value={`₹${revenue.toLocaleString('en-IN')}`} color={COLORS.success} />
         <MetricChip icon="📱" value={`${upiPct}% UPI`} color={COLORS.info} />
       </View>

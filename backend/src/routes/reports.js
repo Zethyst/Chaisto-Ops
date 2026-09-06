@@ -10,8 +10,10 @@ const notificationService = require('../services/notificationService');
 const { diffFigures, asEditHistory } = require('../utils/reportEdits');
 const { draftAsReport, recomputeDraft } = require('../utils/reportDrafts');
 const { reconcileReport } = require('../services/paymentReconciliationService');
+const { analyticsMatch } = require('../utils/analyticsRange');
 const { deviceService } = require('../services/deviceService');
 const AuditLog = require('../models/AuditLog');
+const { momoPlatesExpr } = require('../utils/salesTotals');
 
 const router = express.Router();
 
@@ -21,7 +23,6 @@ router.post('/', ...allRoles, [
   body('date').matches(/^\d{4}-\d{2}-\d{2}$/).withMessage('Date must be YYYY-MM-DD'),
   body('photos.cash').notEmpty().withMessage('Cash photo required'),
   body('photos.stock').notEmpty().withMessage('Stock photo required'),
-  body('photos.milkPacket').notEmpty().withMessage('Milk packet photo required'),
   body('location.latitude').isFloat().withMessage('Valid latitude required'),
   body('location.longitude').isFloat().withMessage('Valid longitude required'),
 ], async (req, res) => {
@@ -657,7 +658,10 @@ router.patch('/:id', ...adminOrModerator, async (req, res) => {
 // The three required photos are locked at submission time; only optional ones
 // (the cart-closing shot, taken when the stall actually shuts) can be added
 // later, and only once.
-const OPTIONAL_PHOTO_KEYS = ['cartClosing'];
+// Photos that are not required at submission, so they can still be added
+// afterwards — the milk packet shot is often taken when the delivery arrives
+// rather than at closing time
+const OPTIONAL_PHOTO_KEYS = ['cartClosing', 'milkPacket'];
 
 router.patch('/:id/photos', ...allRoles, [
   body('category').isIn(OPTIONAL_PHOTO_KEYS).withMessage('Only optional photos can be added after submission'),
@@ -704,12 +708,10 @@ router.patch('/:id/photos', ...allRoles, [
 
 // ─── GET /analytics — Summary analytics ──────────────────────────────────────
 router.get('/analytics/summary', ...adminOrModerator, async (req, res) => {
-  const { stallId, days = 30 } = req.query;
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - parseInt(days));
+  const { stallId, days = 30, month } = req.query;
 
-  const match = { submittedAt: { $gte: cutoff } };
-  if (stallId) match.stallId = require('mongoose').Types.ObjectId(stallId);
+  // A calendar month when one is asked for, otherwise the rolling window
+  const match = analyticsMatch({ stallId, days, month });
 
   try {
     const [summary] = await Report.aggregate([
@@ -718,7 +720,7 @@ router.get('/analytics/summary', ...adminOrModerator, async (req, res) => {
         $group: {
           _id: null,
           totalCups: { $sum: { $add: ['$sales.regularCups', '$sales.specialCups'] } },
-          totalMomoPackets: { $sum: { $add: ['$sales.vegMomoPackets', '$sales.paneerMomoPackets'] } },
+          totalMomoPackets: { $sum: momoPlatesExpr() },
           totalRevenue: { $sum: '$computed.totalRevenue' },
           totalUPI: { $sum: '$payments.upi' },
           totalCash: { $sum: '$payments.cash' },
@@ -734,7 +736,7 @@ router.get('/analytics/summary', ...adminOrModerator, async (req, res) => {
         $group: {
           _id: '$date',
           cups: { $sum: { $add: ['$sales.regularCups', '$sales.specialCups'] } },
-          momoPackets: { $sum: { $add: ['$sales.vegMomoPackets', '$sales.paneerMomoPackets'] } },
+          momoPackets: { $sum: momoPlatesExpr() },
           revenue: { $sum: '$computed.totalRevenue' },
         },
       },
@@ -748,7 +750,7 @@ router.get('/analytics/summary', ...adminOrModerator, async (req, res) => {
       {
         $group: {
           _id: '$stallId',
-          plates: { $sum: { $add: ['$sales.vegMomoPackets', '$sales.paneerMomoPackets'] } },
+          plates: { $sum: momoPlatesExpr() },
         },
       },
     ]);
@@ -768,7 +770,7 @@ router.get('/analytics/summary', ...adminOrModerator, async (req, res) => {
           _id: '$staffId',
           name: { $first: '$staffName' },
           cups: { $sum: { $add: ['$sales.regularCups', '$sales.specialCups'] } },
-          momoPackets: { $sum: { $add: ['$sales.vegMomoPackets', '$sales.paneerMomoPackets'] } },
+          momoPackets: { $sum: momoPlatesExpr() },
           revenue: { $sum: '$computed.totalRevenue' },
           reports: { $sum: 1 },
         },

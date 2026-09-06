@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
-   Modal, ActivityIndicator, RefreshControl,
+  Modal, ActivityIndicator, RefreshControl, ScrollView,
+  KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard,
 } from 'react-native';
 import { showAlert } from '../../components/AppAlert';
 import { useSelector } from 'react-redux';
@@ -72,6 +73,14 @@ export default function InventoryManagementScreen() {
   }, []);
 
   const onRefresh = () => { setRefreshing(true); loadItems(selectedStallId); };
+
+  /** Clears the sheet — used by Cancel, the backdrop and the Android back button. */
+  const closeSupply = () => {
+    setSupplyItem(null);
+    setSupplyQty('');
+    setSupplyNote('');
+    setSupplyError(null);
+  };
 
   const handleSupply = async () => {
     if (!supplyItem || !supplyQty || isNaN(parseFloat(supplyQty))) {
@@ -243,8 +252,18 @@ export default function InventoryManagementScreen() {
       )}
 
       {/* Supply Modal */}
-      <Modal visible={!!supplyItem} animationType="slide" presentationStyle="pageSheet" transparent>
-        <View style={styles.modalBackdrop}>
+      <Modal
+        visible={!!supplyItem}
+        animationType="slide"
+        transparent
+        onRequestClose={closeSupply}
+      >
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        {/* Tapping the dimmed area closes the sheet; a tap inside it only
+            dismisses the keyboard, since the inner handler takes the press */}
+        <TouchableWithoutFeedback onPress={closeSupply}>
+          <View style={styles.modalBackdrop}>
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.modal}>
             <Text style={styles.modalTitle}>Record Supply</Text>
             <Text style={styles.modalSub}>{supplyItem?.name} · {supplyItem?.unit}</Text>
@@ -272,7 +291,7 @@ export default function InventoryManagementScreen() {
               multiline
             />
             <View style={styles.modalBtns}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => { setSupplyItem(null); setSupplyQty(''); setSupplyNote(''); }}>
+              <TouchableOpacity style={styles.modalCancel} onPress={closeSupply}>
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalConfirm} onPress={handleSupply} disabled={supplyLoading}>
@@ -280,11 +299,23 @@ export default function InventoryManagementScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Add Item Modal */}
-      <Modal visible={showAddModal} animationType="slide" presentationStyle="pageSheet">
+      <Modal
+        visible={showAddModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowAddModal(false)}
+      >
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <TouchableWithoutFeedback onPress={() => setShowAddModal(false)}>
+          <View style={styles.modalBackdrop}>
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={styles.addModal}>
           <View style={styles.addModalHeader}>
             <Text style={styles.modalTitle}>Add Inventory Item</Text>
@@ -292,7 +323,7 @@ export default function InventoryManagementScreen() {
               <Text style={{ color: COLORS.primary, fontWeight: '600' }}>Close</Text>
             </TouchableOpacity>
           </View>
-          <View style={{ padding: SPACING.xl }}>
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: SPACING.xl }}>
             {addError && (
               <View style={styles.errorBanner}>
                 <Text style={styles.errorBannerText}>⚠️ {addError}</Text>
@@ -305,8 +336,12 @@ export default function InventoryManagementScreen() {
             <TouchableOpacity style={styles.createItemBtn} onPress={handleAddItem} disabled={addLoading}>
               {addLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.createItemText}>Create Item</Text>}
             </TouchableOpacity>
-          </View>
+          </ScrollView>
         </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -411,7 +446,11 @@ const styles = StyleSheet.create({
   modalConfirm: { flex: 1, backgroundColor: COLORS.primary, borderRadius: BORDER_RADIUS.md, paddingVertical: SPACING.md, alignItems: 'center' },
   modalConfirmText: { color: '#fff', fontWeight: '700' },
 
-  addModal: { flex: 1, backgroundColor: COLORS.white },
+  addModal: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: BORDER_RADIUS.xl, borderTopRightRadius: BORDER_RADIUS.xl,
+    maxHeight: '85%', paddingBottom: 24,
+  },
   addModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: SPACING.xl, borderBottomWidth: 0.5, borderBottomColor: COLORS.border },
   createItemBtn: { backgroundColor: COLORS.primary, borderRadius: BORDER_RADIUS.md, paddingVertical: SPACING.lg, alignItems: 'center', marginTop: SPACING.md },
   createItemText: { color: '#fff', fontWeight: '700', fontSize: FONT_SIZE.lg },

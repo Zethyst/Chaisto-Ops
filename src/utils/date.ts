@@ -36,3 +36,31 @@ export function daysAgoISO(n: number): string {
   d.setDate(d.getDate() - n);
   return toISODate(d);
 }
+
+/**
+ * A date as a person would say it: "Today", "Yesterday", or "Sat, 6 Sep" —
+ * with the year only when it is not the current one, since a year on every
+ * label is noise for a list that is almost always about this week.
+ *
+ * @param iso - a YYYY-MM-DD date, as stored on reports, expenses and wastage
+ */
+export function friendlyDate(iso: string, today: Date = new Date()): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso || '')) return iso || '';
+
+  if (iso === toISODate(today)) return 'Today';
+
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (iso === toISODate(yesterday)) return 'Yesterday';
+
+  // Parsed as local midday so a timezone offset cannot roll it onto another day
+  const [y, m, d] = iso.split('-').map(Number);
+  const date = new Date(y, m - 1, d, 12);
+
+  return date.toLocaleDateString('en-IN', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    ...(y === today.getFullYear() ? {} : { year: 'numeric' }),
+  });
+}

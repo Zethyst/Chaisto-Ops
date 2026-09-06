@@ -91,6 +91,10 @@ export default function ReportFiguresForm({ values, onChange }: {
         {field('sales', 'kulhadCups', 'Kulhad chai', 'cups')}
         {field('sales', 'vegMomoPackets', 'Veg momos', 'pieces', piecesPerPlate)}
         {field('sales', 'paneerMomoPackets', 'Paneer momos', 'pieces', piecesPerPlate)}
+        {field('sales', 'friedVegMomoPackets', 'Fried veg momos', 'pieces', piecesPerPlate)}
+        {field('sales', 'friedPaneerMomoPackets', 'Fried paneer momos', 'pieces', piecesPerPlate)}
+        {field('sales', 'springRolls', 'Spring rolls', 'plates')}
+        {field('sales', 'maggi', 'Maggi', 'plates')}
         {field('sales', 'snacks', 'Snacks sold', '₹')}
         {field('sales', 'cigarettes', 'Cigarettes sold', '₹')}
       </View>
@@ -108,6 +112,8 @@ export default function ReportFiguresForm({ values, onChange }: {
         {field('openingStock', 'kulhadCups', 'Kulhad cups', 'count')}
         {field('openingStock', 'vegMomoPackets', 'Veg momos', 'pieces', piecesPerPlate)}
         {field('openingStock', 'paneerMomoPackets', 'Paneer momos', 'pieces', piecesPerPlate)}
+        {field('openingStock', 'springRolls', 'Spring rolls', 'plates')}
+        {field('openingStock', 'maggi', 'Maggi', 'plates')}
       </View>
 
       <Text style={styles.sectionTitle}>PURCHASES</Text>
@@ -115,6 +121,8 @@ export default function ReportFiguresForm({ values, onChange }: {
         {field('purchases', 'milk', 'Milk purchased', 'packets', milkPacketsPerLitre)}
         {field('purchases', 'vegMomoPackets', 'Veg momos purchased', 'pieces', piecesPerPlate)}
         {field('purchases', 'paneerMomoPackets', 'Paneer momos purchased', 'pieces', piecesPerPlate)}
+        {field('purchases', 'springRolls', 'Spring rolls purchased', 'plates')}
+        {field('purchases', 'maggi', 'Maggi purchased', 'plates')}
         {field('purchases', 'snacks', 'Snacks purchased', '₹')}
         {field('purchases', 'cigarettes', 'Cigarettes purchased', '₹')}
       </View>
@@ -126,6 +134,8 @@ export default function ReportFiguresForm({ values, onChange }: {
         {field('closingStock', 'kulhadCups', 'Kulhad cups remaining', 'count')}
         {field('closingStock', 'vegMomoPackets', 'Veg momos remaining', 'pieces', piecesPerPlate)}
         {field('closingStock', 'paneerMomoPackets', 'Paneer momos remaining', 'pieces', piecesPerPlate)}
+        {field('closingStock', 'springRolls', 'Spring rolls remaining', 'plates')}
+        {field('closingStock', 'maggi', 'Maggi remaining', 'plates')}
       </View>
     </>
   );

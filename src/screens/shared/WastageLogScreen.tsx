@@ -15,6 +15,7 @@ import { todayISO } from '../../utils/date';
 import { apiErrorMessage } from '../../utils/apiError';
 import { useLoggingStall } from './useLoggingStall';
 import MonthNavigator, { currentMonth, monthLabel } from '../../components/MonthNavigator';
+import DateSeparator from '../../components/DateSeparator';
 import DateStrip, { defaultDayFor } from '../../components/DateStrip';
 
 const ITEMS = [
@@ -144,12 +145,14 @@ export default function WastageLogScreen() {
             <Text style={styles.emptyText}>No wastage logged in {monthLabel(month)}</Text>
           </View>
         ) : (
-          logs.map((log) => {
+          logs.map((log, i) => {
             const lid = (log as any)._id || log.id;
+            const startsNewDay = i === 0 || logs[i - 1].date !== log.date;
             return (
-              <View key={lid} style={styles.logCard}>
+              <React.Fragment key={lid}>
+                {startsNewDay && <DateSeparator date={log.date} />}
+                <View style={styles.logCard}>
                 <View style={styles.logHeader}>
-                  <Text style={styles.logDate}>{log.date}</Text>
                   <Text style={styles.logBy}>by {log.loggedByName}</Text>
                   {log.totalEstimatedLoss > 0 && (
                     <Text style={styles.logLoss}>~₹{log.totalEstimatedLoss} loss</Text>
@@ -170,7 +173,8 @@ export default function WastageLogScreen() {
                   );
                 })}
                 {log.notes ? <Text style={styles.logNotes}>Note: {log.notes}</Text> : null}
-              </View>
+                </View>
+              </React.Fragment>
             );
           })
         )}

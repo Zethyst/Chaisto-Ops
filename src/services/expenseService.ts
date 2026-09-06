@@ -20,6 +20,20 @@ export const expenseService = {
     return response.data;
   },
 
+  /**
+   * Admin/moderator corrects a logged expense. Who logged it and which stall it
+   * belongs to stay fixed; the server records what each figure was before.
+   */
+  async updateExpense(id: string, data: {
+    category?: Expense['category'];
+    amount?: number;
+    description?: string;
+    date?: string;
+  }): Promise<Expense> {
+    const response = await api.patch(`/expenses/${id}`, data);
+    return response.data;
+  },
+
   async deleteExpense(id: string): Promise<void> {
     await api.delete(`/expenses/${id}`);
   },

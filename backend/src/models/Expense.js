@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { EXPENSE_CATEGORIES } = require('../utils/expenseCategories');
 
 const expenseSchema = new mongoose.Schema({
   stallId: { type: mongoose.Schema.Types.ObjectId, ref: 'Stall', required: true },
@@ -6,7 +7,7 @@ const expenseSchema = new mongoose.Schema({
   loggedByName: { type: String, required: true },
   category: {
     type: String,
-    enum: ['gas', 'supplies', 'maintenance', 'equipment', 'other'],
+    enum: EXPENSE_CATEGORIES,
     required: true,
   },
   amount: { type: Number, required: true, min: 1 },

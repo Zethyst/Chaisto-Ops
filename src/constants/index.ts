@@ -169,7 +169,9 @@ export const REPORT_STEPS = [
 export const PHOTO_CATEGORIES = [
   { key: 'cash', label: 'Cash Photo', icon: 'cash', required: true },
   { key: 'stock', label: 'Stock Photo', icon: 'package', required: true },
-  { key: 'milkPacket', label: 'Milk Packets', icon: 'droplets', required: true },
+  // Optional: the milk delivery is often photographed when it arrives rather
+  // than at closing, so it must not block the day's report
+  { key: 'milkPacket', label: 'Milk Packets', icon: 'droplets', required: false },
   { key: 'cartClosing', label: 'Cart Closing', icon: 'store', required: false },
 ] as const;
 

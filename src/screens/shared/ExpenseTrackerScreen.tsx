@@ -5,6 +5,7 @@ import {
   Keyboard, TouchableWithoutFeedback, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { showAlert } from '../../components/AppAlert';
+import { EXPENSE_CATEGORIES as CATEGORIES } from '../../constants/expenseCategories';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { expenseService } from '../../services/expenseService';
@@ -15,15 +16,8 @@ import { todayISO } from '../../utils/date';
 import { apiErrorMessage } from '../../utils/apiError';
 import { useLoggingStall } from './useLoggingStall';
 import MonthNavigator, { currentMonth, monthLabel } from '../../components/MonthNavigator';
+import DateSeparator from '../../components/DateSeparator';
 import DateStrip, { defaultDayFor } from '../../components/DateStrip';
-
-const CATEGORIES: { key: Expense['category']; label: string; icon: string }[] = [
-  { key: 'gas', label: 'Gas / Fuel', icon: '🔥' },
-  { key: 'supplies', label: 'Supplies', icon: '🧻' },
-  { key: 'maintenance', label: 'Maintenance', icon: '🔧' },
-  { key: 'equipment', label: 'Equipment', icon: '⚙️' },
-  { key: 'other', label: 'Other', icon: '📦' },
-];
 
 
 export default function ExpenseTrackerScreen({ navigation }: any) {
@@ -35,6 +29,9 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  // The expense being corrected, or null when logging a new one — the same
+  // form serves both, so the fields cannot drift apart
+  const [editing, setEditing] = useState<Expense | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -62,13 +59,44 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
 
   useEffect(() => { load(); }, [month]);
 
+  const resetForm = () => {
+    setAmount('');
+    setDescription('');
+    setCategory('gas');
+    setEntryDate(todayISO());
+    setFormError(null);
+  };
+
+  const openNew = () => {
+    haptics.light();
+    setEditing(null);
+    resetForm();
+    setShowForm(true);
+  };
+
+  const openEdit = (e: Expense) => {
+    haptics.light();
+    setEditing(e);
+    setCategory(e.category);
+    setAmount(String(e.amount));
+    setDescription(e.description || '');
+    setEntryDate(e.date);
+    setFormError(null);
+    setShowForm(true);
+  };
+
+  const closeForm = () => {
+    setShowForm(false);
+    setEditing(null);
+  };
+
   const handleSave = async () => {
     const amt = parseFloat(amount);
     if (!amount || isNaN(amt) || amt < 1) {
       setFormError('Enter a valid amount (min ₹1).');
       return;
     }
-    if (missingStallMessage) {
+    if (!editing && missingStallMessage) {
       setFormError(missingStallMessage);
       return;
     }
@@ -76,18 +104,25 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
     haptics.medium();
     setSaving(true);
     try {
-      await expenseService.logExpense({
-        stallId: selectedStallId!,
-        category,
-        amount: amt,
-        description: description.trim() || undefined,
-        date: entryDate,
-      });
+      if (editing) {
+        await expenseService.updateExpense((editing as any)._id || editing.id, {
+          category,
+          amount: amt,
+          description: description.trim() || undefined,
+          date: entryDate,
+        });
+      } else {
+        await expenseService.logExpense({
+          stallId: selectedStallId!,
+          category,
+          amount: amt,
+          description: description.trim() || undefined,
+          date: entryDate,
+        });
+      }
       haptics.success();
-      setShowForm(false);
-      setAmount('');
-      setDescription('');
-      setCategory('gas');
+      closeForm();
+      resetForm();
       load();
     } catch (err: any) {
       haptics.error();
@@ -136,12 +171,7 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
           </View>
           <TouchableOpacity
             style={styles.addBtn}
-            onPress={() => {
-              haptics.light();
-              setFormError(null);
-              setEntryDate(defaultDayFor(month));
-              setShowForm(true);
-            }}
+            onPress={() => { openNew(); setEntryDate(defaultDayFor(month)); }}
           >
             <Text style={styles.addBtnText}>+ Log</Text>
           </TouchableOpacity>
@@ -171,40 +201,51 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
             <Text style={styles.emptyText}>No expenses logged in {monthLabel(month)}</Text>
           </View>
         ) : (
-          expenses.map((e) => {
+          expenses.map((e, i) => {
             const cat = CATEGORIES.find((c) => c.key === e.category);
             const eid = (e as any)._id || e.id;
+            // A separator wherever the day changes — compared against the row
+            // before rather than by grouping, so the server's ordering is kept
+            const startsNewDay = i === 0 || expenses[i - 1].date !== e.date;
             return (
-              <View key={eid} style={styles.expenseRow}>
+              <React.Fragment key={eid}>
+                {startsNewDay && <DateSeparator date={e.date} />}
+                <View style={styles.expenseRow}>
                 <View style={styles.expenseCatIcon}>
                   <Text style={{ fontSize: 22 }}>{cat?.icon || '📦'}</Text>
                 </View>
                 <View style={{ flex: 1, marginLeft: SPACING.md }}>
                   <Text style={styles.expenseCat}>{cat?.label || e.category}</Text>
                   {e.description ? <Text style={styles.expenseDesc}>{e.description}</Text> : null}
-                  <Text style={styles.expenseDate}>{e.date} · by {e.loggedByName}</Text>
+                  <Text style={styles.expenseDate}>by {e.loggedByName}</Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
                   <Text style={styles.expenseAmount}>₹{e.amount}</Text>
                   {isAdmin && (
-                    <TouchableOpacity onPress={() => handleDelete(eid)}>
-                      <Text style={styles.deleteBtn}>Delete</Text>
-                    </TouchableOpacity>
+                    <View style={styles.rowActions}>
+                      <TouchableOpacity onPress={() => openEdit(e)}>
+                        <Text style={styles.editBtn}>Edit</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleDelete(eid)}>
+                        <Text style={styles.deleteBtn}>Delete</Text>
+                      </TouchableOpacity>
+                    </View>
                   )}
                 </View>
-              </View>
+                </View>
+              </React.Fragment>
             );
           })
         )}
       </ScrollView>
 
       {/* Log expense modal */}
-      <Modal visible={showForm} animationType="slide" transparent onRequestClose={() => setShowForm(false)}>
+      <Modal visible={showForm} animationType="slide" transparent onRequestClose={closeForm}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Log Expense</Text>
+            <Text style={styles.modalTitle}>{editing ? 'Edit Expense' : 'Log Expense'}</Text>
 
             {formError && (
               <View style={styles.errorBanner}>
@@ -213,7 +254,7 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
             )}
 
             {/* Admins have no stall of their own, so they choose one */}
-            {isAdmin && stalls.length > 0 && (
+            {!editing && isAdmin && stalls.length > 0 && (
               <>
                 <Text style={styles.fieldLabel}>Stall</Text>
                 <View style={styles.stallRow}>
@@ -270,7 +311,7 @@ export default function ExpenseTrackerScreen({ navigation }: any) {
             />
 
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowForm(false)}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={closeForm}>
                 <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
@@ -335,6 +376,8 @@ const styles = StyleSheet.create({
   expenseDesc: { fontSize: FONT_SIZE.sm, color: COLORS.medium, marginTop: 2 },
   expenseDate: { fontSize: FONT_SIZE.xs, color: COLORS.muted, marginTop: 2 },
   expenseAmount: { fontSize: FONT_SIZE.lg, fontWeight: '800', color: COLORS.danger },
+  rowActions: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, marginTop: 2 },
+  editBtn: { fontSize: FONT_SIZE.sm, color: COLORS.primaryLight, fontWeight: '700' },
   deleteBtn: { fontSize: FONT_SIZE.xs, color: COLORS.danger, fontWeight: '600', marginTop: 4 },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },

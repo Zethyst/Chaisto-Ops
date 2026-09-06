@@ -1,4 +1,4 @@
-import { toISODate, todayISO, toISOMonth, currentMonthISO, daysAgoISO } from '../date';
+import { toISODate, todayISO, toISOMonth, currentMonthISO, daysAgoISO, friendlyDate } from '../date';
 
 describe('local-calendar dates', () => {
   it('formats a local midnight as that same day, not the day before', () => {
@@ -37,5 +37,33 @@ describe('relative to now', () => {
   it('counts days back across a month boundary', () => {
     expect(daysAgoISO(0)).toBe('2026-09-03');
     expect(daysAgoISO(3)).toBe('2026-08-31');
+  });
+});
+
+describe('friendlyDate', () => {
+  const today = new Date(2026, 8, 6); // 6 Sep 2026
+
+  it('says Today and Yesterday rather than a date', () => {
+    expect(friendlyDate('2026-09-06', today)).toBe('Today');
+    expect(friendlyDate('2026-09-05', today)).toBe('Yesterday');
+  });
+
+  it('names the weekday for anything earlier this year', () => {
+    expect(friendlyDate('2026-08-30', today)).toBe('Sun, 30 Aug');
+  });
+
+  it('adds the year only when it is not this one', () => {
+    expect(friendlyDate('2025-12-25', today)).toContain('2025');
+    expect(friendlyDate('2026-08-30', today)).not.toContain('2026');
+  });
+
+  it('does not roll onto the wrong day in a timezone behind UTC', () => {
+    // Parsed at local midday, so no offset can shift the calendar day
+    expect(friendlyDate('2026-08-30', today)).toContain('30');
+  });
+
+  it('passes through anything that is not a date', () => {
+    expect(friendlyDate('')).toBe('');
+    expect(friendlyDate('not-a-date')).toBe('not-a-date');
   });
 });

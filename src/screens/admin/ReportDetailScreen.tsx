@@ -12,6 +12,9 @@ import { reportService } from '../../services/reportService';
 import { aiService } from '../../services/aiService';
 import { DailyReport, SuspicionFlag } from '../../types';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
+import { qty } from '../../utils/number';
+import { momoPlatesSold } from '../../utils/reportTotals';
+import { fieldLabel } from '../../utils/reportFields';
 import { haptics } from '../../utils/haptics';
 
 export default function ReportDetailScreen({ route, navigation }: any) {
@@ -72,8 +75,11 @@ export default function ReportDetailScreen({ route, navigation }: any) {
   }
 
   const totalCups = (report.sales?.regularCups || 0) + (report.sales?.specialCups || 0) + (report.sales?.kulhadCups || 0);
-  const totalMomoPackets = (report.sales?.vegMomoPackets || 0) + (report.sales?.paneerMomoPackets || 0);
+  const totalMomoPackets = momoPlatesSold(report.sales);
   const totalRevenue = (report.payments?.upi || 0) + (report.payments?.cash || 0);
+  // A backfill carries 0,0 — a real coordinate in the Atlantic, so it is shown
+  // as never captured rather than as a location
+  const hasLocation = !!(report.location?.latitude || report.location?.longitude);
   const upiPct = totalRevenue > 0 ? Math.round((report.payments?.upi / totalRevenue) * 100) : 0;
 
   const statusColor = { submitted: COLORS.info, reviewed: COLORS.success, flagged: COLORS.danger, draft: COLORS.muted };
@@ -119,7 +125,7 @@ export default function ReportDetailScreen({ route, navigation }: any) {
       {/* Summary KPIs */}
       <View style={styles.kpiRow}>
         <MiniKpi label="Cups" value={String(totalCups)} icon="☕" color={COLORS.primary} />
-        <MiniKpi label="Momo Plates" value={String(totalMomoPackets)} icon="🥟" color={COLORS.primary} />
+        <MiniKpi label="Momo Plates" value={qty(totalMomoPackets)} icon="🥟" color={COLORS.primary} />
         <MiniKpi label="Revenue" value={`₹${totalRevenue}`} icon="💰" color={COLORS.success} />
         <MiniKpi label="UPI" value={`${upiPct}%`} icon="📱" color={COLORS.info} />
         <MiniKpi label="Flags" value={String(report.flags?.length || 0)} icon="🚩" color={COLORS.danger} />
@@ -165,20 +171,26 @@ export default function ReportDetailScreen({ route, navigation }: any) {
         <DataRow label="Regular Chai" value={`${report.sales?.regularCups || 0} cups`} />
         <DataRow label="Special Chai" value={`${report.sales?.specialCups || 0} cups`} />
         <DataRow label="Kulhad Chai" value={`${report.sales?.kulhadCups || 0} cups`} />
-        <DataRow label="Veg Momo" value={`${report.sales?.vegMomoPackets || 0} plates`} />
-        <DataRow label="Paneer Momo" value={`${report.sales?.paneerMomoPackets || 0} plates`} />
+        <DataRow label="Veg Momo" value={`${qty(report.sales?.vegMomoPackets)} plates`} />
+        <DataRow label="Paneer Momo" value={`${qty(report.sales?.paneerMomoPackets)} plates`} />
+        <DataRow label="Fried Veg Momo" value={`${qty(report.sales?.friedVegMomoPackets)} plates`} />
+        <DataRow label="Fried Paneer Momo" value={`${qty(report.sales?.friedPaneerMomoPackets)} plates`} />
+        <DataRow label="Spring Roll" value={`${qty(report.sales?.springRolls)} plates`} />
+        <DataRow label="Maggi" value={`${qty(report.sales?.maggi)} plates`} />
         <DataRow label="Snack Sales" value={`₹${report.sales?.snacks || 0}`} />
         <DataRow label="Cigarette Sales" value={`₹${report.sales?.cigarettes || 0}`} />
         <DataRow label="Total Cups" value={`${totalCups} cups`} bold />
-        <DataRow label="Total Momo Plates" value={`${totalMomoPackets} plates`} bold />
+        <DataRow label="Total Momo Plates" value={`${qty(totalMomoPackets)} plates`} bold />
         <DataRow label="Est. Revenue" value={`₹${report.computed?.totalRevenue || 0}`} bold />
       </Section>
 
       {/* Purchases */}
       <Section title="🛒 Purchases Today">
-        <DataRow label="Milk Purchased" value={`${report.purchases?.milk || 0} L`} />
-        <DataRow label="Veg Momo Purchased" value={`${report.purchases?.vegMomoPackets || 0} plates`} />
-        <DataRow label="Paneer Momo Purchased" value={`${report.purchases?.paneerMomoPackets || 0} plates`} />
+        <DataRow label="Milk Purchased" value={`${qty(report.purchases?.milk)} L`} />
+        <DataRow label="Veg Momo Purchased" value={`${qty(report.purchases?.vegMomoPackets)} plates`} />
+        <DataRow label="Paneer Momo Purchased" value={`${qty(report.purchases?.paneerMomoPackets)} plates`} />
+        <DataRow label="Spring Rolls Purchased" value={`${qty(report.purchases?.springRolls)} plates`} />
+        <DataRow label="Maggi Purchased" value={`${qty(report.purchases?.maggi)} plates`} />
         <DataRow label="Snacks Purchased" value={`₹${report.purchases?.snacks || 0}`} />
         <DataRow label="Cigarettes Purchased" value={`₹${report.purchases?.cigarettes || 0}`} />
       </Section>
@@ -193,20 +205,24 @@ export default function ReportDetailScreen({ route, navigation }: any) {
 
       {/* Opening Stock */}
       <Section title="📦 Opening Stock">
-        <DataRow label="Milk" value={`${report.openingStock?.milk || 0} L`} />
+        <DataRow label="Milk" value={`${qty(report.openingStock?.milk)} L`} />
         <DataRow label="Paper Cups" value={String(report.openingStock?.cups || 0)} />
         <DataRow label="Kulhad Cups" value={String(report.openingStock?.kulhadCups || 0)} />
-        <DataRow label="Veg Momo" value={`${report.openingStock?.vegMomoPackets || 0} plates`} />
-        <DataRow label="Paneer Momo" value={`${report.openingStock?.paneerMomoPackets || 0} plates`} />
+        <DataRow label="Veg Momo" value={`${qty(report.openingStock?.vegMomoPackets)} plates`} />
+        <DataRow label="Paneer Momo" value={`${qty(report.openingStock?.paneerMomoPackets)} plates`} />
+        <DataRow label="Spring Rolls" value={`${qty(report.openingStock?.springRolls)} plates`} />
+        <DataRow label="Maggi" value={`${qty(report.openingStock?.maggi)} plates`} />
       </Section>
 
       {/* Closing Stock */}
       <Section title="📊 Closing Stock">
-        <DataRow label="Milk" value={`${report.closingStock?.milk || 0} L`} />
+        <DataRow label="Milk" value={`${qty(report.closingStock?.milk)} L`} />
         <DataRow label="Paper Cups" value={String(report.closingStock?.cups || 0)} />
         <DataRow label="Kulhad Cups" value={String(report.closingStock?.kulhadCups || 0)} />
-        <DataRow label="Veg Momo" value={`${report.closingStock?.vegMomoPackets || 0} plates`} />
-        <DataRow label="Paneer Momo" value={`${report.closingStock?.paneerMomoPackets || 0} plates`} />
+        <DataRow label="Veg Momo" value={`${qty(report.closingStock?.vegMomoPackets)} plates`} />
+        <DataRow label="Paneer Momo" value={`${qty(report.closingStock?.paneerMomoPackets)} plates`} />
+        <DataRow label="Spring Rolls" value={`${qty(report.closingStock?.springRolls)} plates`} />
+        <DataRow label="Maggi" value={`${qty(report.closingStock?.maggi)} plates`} />
       </Section>
 
       {/* Computed */}
@@ -214,19 +230,34 @@ export default function ReportDetailScreen({ route, navigation }: any) {
         <DataRow label="Milk Used" value={`${(report.computed?.milkUsed || 0).toFixed(2)} L`} />
         <DataRow label="Expected Cups (from milk)" value={String(Math.round(report.computed?.expectedCupsFromMilk || 0))} />
         <DataRow label="Expected Momo Packets (from stock)" value={String(Math.round(report.computed?.expectedMomoFromStock || 0))} />
-        <DataRow label="Revenue per Cup" value={`₹${(report.computed?.revenuePerCup || 0).toFixed(1)}`} />
-        <DataRow label="Revenue per Momo Packet" value={`₹${(report.computed?.revenuePerMomoPacket || 0).toFixed(1)}`} />
+        <DataRow
+          label="Revenue per Cup"
+          value={report.computed?.revenuePerCup ? `₹${report.computed.revenuePerCup.toFixed(1)}` : '—'}
+        />
+        <DataRow
+          label="Revenue per Momo Packet"
+          value={report.computed?.revenuePerMomoPacket ? `₹${report.computed.revenuePerMomoPacket.toFixed(1)}` : '—'}
+        />
       </Section>
 
-      {/* Location */}
+      {/* Location — absent entirely on a report entered after the fact, where
+          0.00000 would read as the Atlantic rather than as "never captured" */}
       <Section title="📍 Location">
-        <DataRow label="Latitude" value={(report.location?.latitude || 0).toFixed(5)} />
-        <DataRow label="Longitude" value={(report.location?.longitude || 0).toFixed(5)} />
         <DataRow
-          label="Submitted At"
-          value={report.submittedAt
-            ? new Date(report.submittedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-            : '—'}
+          label="Latitude"
+          value={hasLocation ? report.location.latitude.toFixed(5) : 'Not captured'}
+        />
+        <DataRow
+          label="Longitude"
+          value={hasLocation ? report.location.longitude.toFixed(5) : 'Not captured'}
+        />
+        <DataRow
+          label={report.isBackfill ? 'Entered For' : 'Submitted At'}
+          value={report.isBackfill
+            ? report.date
+            : report.submittedAt
+              ? new Date(report.submittedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+              : '—'}
         />
       </Section>
 
@@ -261,20 +292,33 @@ export default function ReportDetailScreen({ route, navigation }: any) {
         <Section title="✏️ Edit History">
           {report.editHistory.map((entry, i) => (
             <View key={i} style={styles.editEntry}>
-              <Text style={styles.editEntryHead}>
-                {entry.editedByName || 'An admin'}
-                {entry.editedAt
-                  ? ` · ${new Date(entry.editedAt).toLocaleString('en-IN', {
+              <View style={styles.editHead}>
+                <Text style={styles.editWho}>{entry.editedByName || 'An admin'}</Text>
+                {!!entry.editedAt && (
+                  <Text style={styles.editWhen}>
+                    {new Date(entry.editedAt).toLocaleString('en-IN', {
                       day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-                    })}`
-                  : ''}
-              </Text>
+                    })}
+                  </Text>
+                )}
+              </View>
               {!!entry.reason && <Text style={styles.editReason}>“{entry.reason}”</Text>}
-              {entry.changes.map((c, j) => (
-                <Text key={j} style={styles.editChange}>
-                  {c.field}: {c.from} → {c.to}
-                </Text>
-              ))}
+
+              {entry.changes.map((c, j) => {
+                const { label, unit } = fieldLabel(c.field);
+                return (
+                  <View key={j} style={styles.editChangeRow}>
+                    <Text style={styles.editField} numberOfLines={2}>{label}</Text>
+                    <View style={styles.editValues}>
+                      <Text style={styles.editFrom}>{qty(c.from)}</Text>
+                      <Text style={styles.editArrow}>→</Text>
+                      <Text style={styles.editTo}>
+                        {qty(c.to)}{unit ? ` ${unit}` : ''}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
             </View>
           ))}
         </Section>
@@ -293,30 +337,32 @@ export default function ReportDetailScreen({ route, navigation }: any) {
       {/* Admin Review */}
       {isAdmin && report.status !== 'reviewed' && (
         <Section title="Admin Review">
-          <TextInput
-            style={styles.reviewInput}
-            placeholder="Add review notes (optional)..."
-            placeholderTextColor={COLORS.muted}
-            value={reviewNote}
-            onChangeText={setReviewNote}
-            multiline
-            numberOfLines={3}
-          />
-          <View style={styles.reviewBtns}>
-            <TouchableOpacity
-              style={[styles.reviewBtn, styles.approveBtn, reviewing && { opacity: 0.5 }]}
-              onPress={() => handleReview('reviewed')}
-              disabled={reviewing}
-            >
-              <Text style={styles.reviewBtnText}>✓ Mark Reviewed</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.reviewBtn, styles.flagBtn, reviewing && { opacity: 0.5 }]}
-              onPress={() => handleReview('flagged')}
-              disabled={reviewing}
-            >
-              <Text style={[styles.reviewBtnText, { color: COLORS.danger }]}>🚨 Flag Report</Text>
-            </TouchableOpacity>
+          <View style={styles.reviewBody}>
+            <TextInput
+              style={styles.reviewInput}
+              placeholder="Add review notes (optional)..."
+              placeholderTextColor={COLORS.muted}
+              value={reviewNote}
+              onChangeText={setReviewNote}
+              multiline
+              numberOfLines={3}
+            />
+            <View style={styles.reviewBtns}>
+              <TouchableOpacity
+                style={[styles.reviewBtn, styles.approveBtn, reviewing && { opacity: 0.5 }]}
+                onPress={() => handleReview('reviewed')}
+                disabled={reviewing}
+              >
+                <Text style={styles.reviewBtnText}>✓ Mark Reviewed</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.reviewBtn, styles.flagBtn, reviewing && { opacity: 0.5 }]}
+                onPress={() => handleReview('flagged')}
+                disabled={reviewing}
+              >
+                <Text style={styles.reviewBtnText}>🚨 Flag Report</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </Section>
       )}
@@ -369,8 +415,10 @@ function MiniKpi({ label, value, icon, color }: any) {
   return (
     <View style={[styles.miniKpi, { borderTopColor: color, borderTopWidth: 2 }]}>
       <Text style={{ fontSize: 18 }}>{icon}</Text>
-      <Text style={[styles.miniKpiValue, { color }]}>{value}</Text>
-      <Text style={styles.miniKpiLabel}>{label}</Text>
+      <Text style={[styles.miniKpiValue, { color }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+        {value}
+      </Text>
+      <Text style={styles.miniKpiLabel} numberOfLines={1}>{label}</Text>
     </View>
   );
 }
@@ -416,9 +464,31 @@ const styles = StyleSheet.create({
   editBtnText: { color: COLORS.primary, fontWeight: '800', fontSize: FONT_SIZE.md },
 
   editEntry: {
-    paddingVertical: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight,
+    paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md,
+    borderBottomWidth: 1, borderBottomColor: COLORS.borderLight,
   },
-  editEntryHead: { fontSize: FONT_SIZE.sm, fontWeight: '700', color: COLORS.dark },
+  editHead: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  editWho: { fontSize: FONT_SIZE.sm, fontWeight: '800', color: COLORS.black },
+  editWhen: { fontSize: FONT_SIZE.xs, color: COLORS.muted },
+
+  // A change reads left to right: what changed, then from what to what. The
+  // new value is the one being checked, so it is the one that stands out.
+  editChangeRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    gap: SPACING.sm, paddingVertical: 6,
+    borderTopWidth: 1, borderTopColor: COLORS.borderLight,
+  },
+  editField: { flex: 1, fontSize: FONT_SIZE.sm, color: COLORS.dark },
+  editValues: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  editFrom: {
+    fontSize: FONT_SIZE.sm, color: COLORS.muted,
+    textDecorationLine: 'line-through',
+  },
+  editArrow: { fontSize: FONT_SIZE.sm, color: COLORS.muted },
+  editTo: { fontSize: FONT_SIZE.sm, fontWeight: '800', color: COLORS.primaryLight },
   editReason: { fontSize: FONT_SIZE.sm, color: COLORS.muted, fontStyle: 'italic', marginTop: 2 },
   editChange: { fontSize: FONT_SIZE.sm, color: COLORS.medium, marginTop: 2 },
 
@@ -431,9 +501,11 @@ const styles = StyleSheet.create({
   backfillIcon: { fontSize: 16, marginTop: 1 },
   backfillText: { flex: 1, fontSize: FONT_SIZE.sm, color: COLORS.warning, lineHeight: 20, fontWeight: '600' },
 
-  kpiRow: { flexDirection: 'row', padding: SPACING.lg, gap: SPACING.sm },
+  kpiRow: { flexDirection: 'row', flexWrap: 'wrap', padding: SPACING.lg, gap: SPACING.sm },
   miniKpi: {
-    flex: 1, backgroundColor: COLORS.white, borderRadius: BORDER_RADIUS.md,
+    // Three per row rather than five squeezed across a phone
+    flexGrow: 1, flexBasis: '30%', minWidth: 96,
+    backgroundColor: COLORS.white, borderRadius: BORDER_RADIUS.md,
     padding: SPACING.sm, alignItems: 'center', ...SHADOWS.sm,
     borderWidth: 1, borderColor: COLORS.border,
   },
@@ -496,6 +568,9 @@ const styles = StyleSheet.create({
   },
   lightboxLabelText: { color: '#fff', fontSize: FONT_SIZE.lg, fontWeight: '700', letterSpacing: 0.5 },
 
+  // The section card has no padding of its own — data rows supply theirs — so
+  // the review controls need their own, or they sit on the card's border
+  reviewBody: { padding: SPACING.lg },
   reviewInput: {
     borderWidth: 1, borderColor: COLORS.border, borderRadius: BORDER_RADIUS.sm,
     padding: SPACING.md, color: COLORS.black, fontSize: FONT_SIZE.md,
@@ -505,11 +580,13 @@ const styles = StyleSheet.create({
   reviewBtns: { flexDirection: 'row', gap: SPACING.md },
   reviewBtn: {
     flex: 1, borderRadius: BORDER_RADIUS.md, paddingVertical: SPACING.md,
-    alignItems: 'center', borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center', minHeight: 48,
   },
-  approveBtn: { backgroundColor: COLORS.successBg, borderColor: COLORS.success },
-  flagBtn: { backgroundColor: COLORS.dangerBg, borderColor: COLORS.danger },
-  reviewBtnText: { fontWeight: '700', fontSize: FONT_SIZE.md, color: COLORS.success },
+  // Filled rather than tinted: these are the two decisions the screen exists to
+  // make, and a pale wash on a white card read as unfinished
+  approveBtn: { backgroundColor: COLORS.success },
+  flagBtn: { backgroundColor: COLORS.danger },
+  reviewBtnText: { fontWeight: '800', fontSize: FONT_SIZE.md, color: '#fff' },
 
   aiAnalyzeBtn: {
     marginTop: SPACING.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',

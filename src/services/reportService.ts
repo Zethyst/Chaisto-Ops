@@ -227,7 +227,12 @@ export const reportService = {
     return synced;
   },
 
-  async getAnalytics(params: { stallId?: string; days: number }): Promise<any> {
+  /**
+   * Summary figures for a rolling window (`days`) or a calendar month
+   * (`month`, as YYYY-MM). A month is matched on the day each report covers,
+   * so it lines up with the expense and wastage months on the P&L.
+   */
+  async getAnalytics(params: { stallId?: string; days?: number; month?: string }): Promise<any> {
     const response = await api.get('/reports/analytics/summary', { params });
     return response.data;
   },

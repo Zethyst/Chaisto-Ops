@@ -15,6 +15,9 @@ const MISMATCH_HIGH_THRESHOLD = 0.45;
  * @param {object} report - has openingStock, purchases, closingStock, sales, payments
  * @returns {{ computed: object, flags: object[], status: 'submitted' | 'flagged' }}
  */
+/** Plate-equivalents are fractional; two decimals is as fine as anyone counts. */
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
 function computeAntiCheatMetrics(report) {
   const { openingStock, purchases, closingStock, sales, payments } = report;
   const flags = [];
@@ -22,7 +25,11 @@ function computeAntiCheatMetrics(report) {
   const milkUsed = (openingStock.milk || 0) + (purchases.milk || 0) - (closingStock.milk || 0);
   const expectedCups = milkUsed * CUPS_PER_LITRE;
   const totalCups = (sales.regularCups || 0) + (sales.specialCups || 0) + (sales.kulhadCups || 0);
-  const totalMomoPackets = (sales.vegMomoPackets || 0) + (sales.paneerMomoPackets || 0);
+  // Fried momos are the same momos, fried to order — they leave the same hole
+  // in the day's stock, so they belong in this total. Leaving them out would
+  // flag every fried plate as stock that walked off.
+  const totalMomoPackets = (sales.vegMomoPackets || 0) + (sales.paneerMomoPackets || 0)
+    + (sales.friedVegMomoPackets || 0) + (sales.friedPaneerMomoPackets || 0);
   const totalRevenue = (payments.upi || 0) + (payments.cash || 0);
   // Snacks and cigarettes are sold by rupee value, not by the cup or plate, so
   // they are netted out before checking the per-unit rate — otherwise a stall
@@ -73,7 +80,9 @@ function computeAntiCheatMetrics(report) {
     flags.push({
       type: 'momo_stock_mismatch',
       severity: momoStockDeviation > MISMATCH_HIGH_THRESHOLD ? 'high' : 'medium',
-      message: `${totalMomoPackets} momo plates sold but stock suggests ~${Math.round(expectedMomoFromStock)} plates (${(momoStockDeviation * 100).toFixed(0)}% off)`,
+      // Plates are fractional — a third of a packet is 0.8333333333333334, and
+      // this message is stored on the report and read by an admin
+      message: `${round2(totalMomoPackets)} momo plates sold but stock suggests ~${Math.round(expectedMomoFromStock)} plates (${(momoStockDeviation * 100).toFixed(0)}% off)`,
       value: totalMomoPackets,
       expectedValue: Math.round(expectedMomoFromStock),
     });

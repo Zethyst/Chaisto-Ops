@@ -16,6 +16,8 @@ import { DailyReport, PayrollSummary } from '../../types';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOWS } from '../../constants';
 import { haptics } from '../../utils/haptics';
 import { toISODate, currentMonthISO } from '../../utils/date';
+import { qty } from '../../utils/number';
+import { momoPlatesSold } from '../../utils/reportTotals';
 import { useLanguage } from '../../i18n';
 import BrandedLogoMark from '../../components/BrandedLogoMark';
 import PaymentMonitorCard from '../../components/PaymentMonitorCard';
@@ -250,7 +252,7 @@ export default function StaffDashboard({ navigation }: any) {
           <Text style={styles.summaryTitle}>{t('todaySummary')}</Text>
           <View style={styles.summaryGrid}>
             <SummaryItem label={t('cupsSold')} value={String((todayReport.sales?.regularCups || 0) + (todayReport.sales?.specialCups || 0))} icon="☕" />
-            <SummaryItem label={t('momoSold')} value={String((todayReport.sales?.vegMomoPackets || 0) + (todayReport.sales?.paneerMomoPackets || 0))} icon="🥟" />
+            <SummaryItem label={t('momoSold')} value={qty(momoPlatesSold(todayReport.sales))} icon="🥟" />
             <SummaryItem label={t('revenue')} value={`₹${todayReport.computed?.totalRevenue || 0}`} icon="💰" />
             <SummaryItem label="UPI" value={`₹${todayReport.payments?.upi || 0}`} icon="📱" />
             <SummaryItem label="Cash" value={`₹${todayReport.payments?.cash || 0}`} icon="💵" />
